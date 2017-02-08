@@ -8,6 +8,32 @@ typedef unsigned char byte;
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
 
+
+cpl_image * cr2res_slitdec_vert(  cpl_image * im_cpl, // full detector image
+                        cpl_vector * ycen_cpl, // current order mid-line y-coordinates
+                        int height, // number of pix above and below mid-line
+                        int swath // width per swath
+    ){
+    /*
+
+This func takes a single image (contining many orders), and a *single*
+order definition in the form of central y-corrds., plus the height.
+Swath widht and oversampling are passed through.
+
+
+The task of this function then is to 
+        * cut out the relevant pixels of the order
+        * shift im in y integers, so that nrows becomes minimal, adapt ycen accordingly
+        * loop over swaths, in half-steps
+        * run slit_func_vert()
+        * merge overlapping swath results by linear weights from swath-width to edge.
+        * return re-assembled model image, slit-fu, spectrum, new mask. 
+    */
+
+
+    return im_cpl;
+}
+
 int bandsol(double *a, double *r, int n, int nd)
 {
   double aa;
@@ -67,25 +93,6 @@ int bandsol(double *a, double *r, int n, int nd)
   r[0]/=a[n*(nd/2)];
 
   return 0;
-}
-
-cpl_image * make_slit(  cpl_image * im_cpl, // full detector image
-                        cpl_vector * ycen_cpl, // current order mid-line y-coordinates
-                        int height, // number of pix above and below mid-line
-                        int swath // width per swath
-    ){
-    /*
-    The task of this function is to 
-        * cut out the relevant pixels of the order
-        * shift im in y integers, so that nrows becomes minimal, adapt ycen accordingly
-        * loop over swaths, in half-steps
-        * run slit_func()
-        * merge overlapping swath results by linear weights from swath-width to edge.
-        * return re-assembled model image, slit-fu, spectrum, new mask. 
-    */
-
-
-    return im_cpl;
 }
 
 

@@ -133,19 +133,19 @@ static int cr2res_util_extract_create(cpl_plugin * plugin)
     recipe->parameters = cpl_parameterlist_new();
 
     /* Fill the parameters list */
-    p = cpl_parameter_new_value("cr2res.cr2res_extract.poly_order",
+    p = cpl_parameter_new_value("cr2res.cr2res_extract.oversample",
             CPL_TYPE_INT,
-            "polynomial order for the fit to the orders",
-            "cr2res.cr2res_extract", 4);
-    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "polyorder");
+            "factor by which to oversample the extraction",
+            "cr2res.cr2res_extract", 10);
+    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "oversample");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
-    p = cpl_parameter_new_value("cr2res.cr2res_extract.min_cluster",
+    p = cpl_parameter_new_value("cr2res.cr2res_extract.swath_width",
             CPL_TYPE_INT,
-            "size (number of pixels) of the smallest allowed cluster",
-            "cr2res.cr2res_extract", 40);
-    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "mincluster");
+            "The swath width (number of columns) over which the slit function is assumed constant",
+            "cr2res.cr2res_extract", 256);
+    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "swathwidth");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
@@ -274,7 +274,7 @@ static int cr2res_util_extract(
             return -1 ;
         }
         plist = cpl_propertylist_load(cpl_frame_get_filename(rawframe), 0);
-        cr2res_trace(in, CR2RES_DECKER_NONE, &npolys);
+        model = cr2res_slitdec_vert(in, CR2RES_DECKER_NONE, &npolys); //TODO: fix call
         cpl_msg_debug(__func__,"%d npolys found.",npolys);
     }
     cpl_frameset_delete(openslit_frames);
