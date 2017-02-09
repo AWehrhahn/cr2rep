@@ -31,11 +31,16 @@
 #define CR2RES_DARK_BPM_PROCATG         "DARK_BPM"
 #define CR2RES_TRACE_OPEN_PROCATG       "TRACE_OPEN"
 #define CR2RES_TRACE_DECKER_PROCATG     "TRACE_DECKER"
+#define CR2RES_WAVE_COEFFS_PROCATG      "WAVE_COEFFS"
+#define CR2RES_TILT_COEFFS_PROCATG      "TILT_COEFFS"
 
 /* Define here the DO.CATG keywords */
 #define CR2RES_DARK_RAW                 "DARK"
 #define CR2RES_FLAT_OPEN_RAW            "FLAT_OPEN"
 #define CR2RES_FLAT_DECKER_RAW          "FLAT_DECKER"
+#define CR2RES_SCI_1D_RAW               "OBS_1D"
+#define CR2RES_SCI_2D_RAW               "OBS_2D"
+#define CR2RES_SCI_POL_RAW              "OBS_POL"
 
 /*-----------------------------------------------------------------------------
                                 Functions prototypes

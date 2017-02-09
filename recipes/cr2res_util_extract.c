@@ -54,12 +54,12 @@ static int cr2res_util_extract(cpl_frameset *, const cpl_parameterlist *);
 
 static char cr2res_util_extract_description[] =
 "TODO : Descripe here the recipe in / out / params / basic algo\n"
-"trace-open.fits " CR2RES_FLAT_OPEN_RAW "\n"
+"science.fits " CR2RES_OBS_1D "\n"
+"trace.fits " CR2RES_TRACE_OPEN_PROCATG "\n"
+"trace.fits " CR2RES_TRACE_DECKER_PROCATG "\n"
 "trace-decker.fits " CR2RES_FLAT_DECKER_RAW "\n"
 "master_bpm.fits " CR2RES_MASTER_BPM_PROCATG "\n"
 " The recipe produces the following products:\n"
-"master_dark.fits " CR2RES_TRACE_OPEN_PROCATG "\n"
-"dark_bpm.fits " CR2RES_TRACE_DECKER_PROCATG "\n"
 "\n";
 
 /*-----------------------------------------------------------------------------
@@ -149,25 +149,11 @@ static int cr2res_util_extract_create(cpl_plugin * plugin)
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
-    p = cpl_parameter_new_value("cr2res.cr2res_extract.smooth",
-            CPL_TYPE_DOUBLE,
-            "Length of the smoothing kernel,relative to inter-order separation",
-            "cr2res.cr2res_extract", 1.0);
+    p = cpl_parameter_new_value("cr2res.cr2res_extract.sum_only",
+            CPL_TYPE_BOOL,
+            "If True, sum along detector column only, instead of slit decomposition",
+            "cr2res.cr2res_extract", FALSE);
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "smooth");
-    cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
-    cpl_parameterlist_append(recipe->parameters, p);
-
-    p = cpl_parameter_new_value("cr2res.cr2res_extract.cpl-lab",
-            CPL_TYPE_BOOL, "Use CPL labelization",
-            "cr2res.cr2res_extract", FALSE);
-    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "cpl-lab");
-    cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
-    cpl_parameterlist_append(recipe->parameters, p);
-
-    p = cpl_parameter_new_value("cr2res.cr2res_extract.join-clusters",
-            CPL_TYPE_BOOL, "Use a morphological closing to rejoin clusters",
-            "cr2res.cr2res_extract", FALSE);
-    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "join-clusters");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
