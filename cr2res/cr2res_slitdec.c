@@ -1,18 +1,64 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <math.h>
+/*
+ * This file is part of the CR2RES Pipeline
+ * Copyright (C) 2002,2003 European Southern Observatory
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02111-1307  USA
+ */
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+/*-----------------------------------------------------------------------------
+                                   Includes
+ -----------------------------------------------------------------------------*/
+
 #include <cpl.h>
+#include "cr2res_slitdec.h"
 
-typedef unsigned char byte;
-#define min(a,b) (((a)<(b))?(a):(b))
-#define max(a,b) (((a)>(b))?(a):(b))
+/*-----------------------------------------------------------------------------
+                                   Defines
+ -----------------------------------------------------------------------------*/
 
 
-cpl_image * cr2res_slitdec_vert(  cpl_image * im_cpl, // full detector image
-                        cpl_vector * ycen_cpl, // current order mid-line y-coordinates
+ typedef unsigned char byte;
+ #define min(a,b) (((a)<(b))?(a):(b))
+ #define max(a,b) (((a)>(b))?(a):(b))
+
+/*-----------------------------------------------------------------------------
+                                Functions prototypes
+ -----------------------------------------------------------------------------*/
+
+ int bandsol(double *a, double *r, int n, int nd) ;
+
+
+/*----------------------------------------------------------------------------*/
+/**
+ * @defgroup cr2res_cluster  Cluster related
+ */
+/*----------------------------------------------------------------------------*/
+
+/**@{*/
+
+cpl_image * cr2res_slitdec_vert(  cpl_image * img_in, // full detector image
+                        cpl_vector * ycen, // current order mid-line y-coordinates
                         int height, // number of pix above and below mid-line
-                        int swath // width per swath
+                        int swath, // width per swath
+                        int oversample, // factor for oversampling
+                        cpl_vector * slit_func, // slit illumination
+                        cpl_vector * spec, // spectrum
     ){
     /*
 
@@ -21,85 +67,27 @@ order definition in the form of central y-corrds., plus the height.
 Swath widht and oversampling are passed through.
 
 
-The task of this function then is to 
+The task of this function then is to
         * cut out the relevant pixels of the order
         * shift im in y integers, so that nrows becomes minimal, adapt ycen accordingly
         * loop over swaths, in half-steps
         * run slit_func_vert()
         * merge overlapping swath results by linear weights from swath-width to edge.
-        * return re-assembled model image, slit-fu, spectrum, new mask. 
+        * return re-assembled model image, slit-fu, spectrum, new mask.
     */
 
+    double * model;
 
-    return im_cpl;
-}
+    model = cpl_image_get_data(img_in);
 
-int bandsol(double *a, double *r, int n, int nd)
-{
-  double aa;
-  int i, j, k;
-
-/*
-   bandsol solve a sparse system of linear equations with band-diagonal matrix.
-   Band is assumed to be symmetrix relative to the main diaginal.
-   Parameters are:
-         a is 2D array [n,nd] where n - is the number of equations and nd
-           is the width of the band (3 for tri-diagonal system).
-           nd must be an odd number. The main diagonal should be in a(*,nd/2)
-           The first lower subdiagonal should be in a(1:n-1,nd/2-1), the first
-           upper subdiagonal is in a(0:n-2,nd/2+1) etc. For example:
-                  / 0 0 X X X \
-                  | 0 X X X X |
-                  | X X X X X |
-                  | X X X X X |
-              A = | X X X X X |
-                  | X X X X X |
-                  | X X X X X |
-                  | X X X X 0 |
-                  \ X X X 0 0 /
-         r is the array of RHS of size n.
-   bandsol returns 0 on success, -1 on incorrect size of "a" and -4 on degenerate
-   matrix.
-*/
-
-//  if(mod(nd,2)==0) return -1;
-
-/* Forward sweep */
-  for(i=0; i<n-1; i++)
-  {
-    aa=a[i+n*(nd/2)];
-//    if(aa==0.e0) return -3;
-    r[i]/=aa;
-    for(j=0; j<nd; j++) a[i+j*n]/=aa;
-    for(j=1; j<min(nd/2+1,n-i); j++)
-    {
-      aa=a[i+j+n*(nd/2-j)];
-//      if(aa==0.e0) return -j;
-      r[i+j]-=r[i]*aa;
-      for(k=0; k<n*(nd-j); k+=n) a[i+j+k]-=a[i+k+n*j]*aa;
-    }
-  }
-
-/* Backward sweep */
-  r[n-1]/=a[n-1+n*(nd/2)];
-  for(i=n-1; i>0; i--)
-  {
-    for(j=1; j<=min(nd/2,i); j++) r[i-j]-=r[i]*a[i-j+n*(nd/2+j)];
-//    if(a[i-1+n*(nd/2)]==0.e0) return -5;
-    r[i-1]/=a[i-1+n*(nd/2)];
-  }
-
-//  if(a[n*(nd/2)]==0.e0) return -6;  
-  r[0]/=a[n*(nd/2)];
-
-  return 0;
+    return cpl_image_wrap_double(ncols, nrows, (double *)model);;
 }
 
 
 // returns model
-cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels                                 */ 
+cpl_image * slit_func_vert(int ncols,             /* Swath width in pixels                                 */
                    int nrows,                     /* Extraction slit height in pixels                      */
-                   int osample,                   /* Subpixel ovsersampling factor                         */ 
+                   int osample,                   /* Subpixel ovsersampling factor                         */
                    cpl_image * im_cpl,            /* Image to be decomposed                                */
                    cpl_vector * ycen_cpl,         /* Order centre line offset from pixel row boundary      */
                    cpl_vector * sL_cpl,           /* Slit function resulting from decomposition, start     */
@@ -149,7 +137,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
     }
 
 /*
-   Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols. 
+   Construct the omega tensor. Normally it has the dimensionality of ny*nrows*ncols.
    The tensor is mostly empty and can be easily compressed to ny*nx, but this will
    complicate matrix operations at later stages. I will keep it as it is for now.
    Note, that omega is used in in the equations for sL, sP and for the model but it
@@ -160,7 +148,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 	{
 		iy2=(1.e0-ycen[x])*osample; /* The initial offset should be reconsidered. It looks fine but needs theory. */
 		iy1=iy2-osample;
-		
+
 		if(iy2==0) d1=step;
 		else if(iy1==0) d1=0.e0;
 		else d1=fmod(ycen[x], step);
@@ -270,7 +258,7 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
                 E[x]+=sum*im[y][x]*mask[y][x];
             }
         }
-    
+
         if(lambda_sP>0.e0)
         {
         	norm=0.e0;
@@ -297,14 +285,14 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
       info=bandsol(Adiag, E, ncols, 3);
 
         	for(x=0; x<ncols; x++) sP[x]=E[x];
-        }	
+        }
         else
         {
         	for(x=0; x<ncols; x++)
         	{
         	    sP_old[x]=sP[x];
-        sP[x]=E[x]/Adiag[x+ncols];	
-        	} 
+        sP[x]=E[x]/Adiag[x+ncols];
+        	}
         }
 
 /* Compute the model */
@@ -358,84 +346,68 @@ reconstruct "mask" which is the inverse of the bad-pixel-mask attached to the im
 
     } while(iter++ < maxiter && sP_change > sP_stop*sP_max);
 
-
-    //cpl_matrix_unwrap(Aij_cpl);
-
-
-    return cpl_image_wrap_double(ncols, nrows, (double *)model);
+    return model;
 }
 
-#define NCOLS 768
-#define NROWS  15
-#define NY    161
 
-void testfu(cpl_vector * vec) {
-    double * dat;
-    int i;
-    dat = cpl_vector_get_data(vec);
-    for (i=0;i<cpl_vector_get_size(vec);i++) printf("%e",dat[i]);
-}
 
-int main(int nArgs, char *Args[])
+int bandsol(double *a, double *r, int n, int nd)
 {
-    int ncols, nrows, osample, ny, i, j;
-    FILE *datafile;
-    static byte mask_data[NROWS][NCOLS];
-    static double im_data[NROWS][NCOLS], ycen_data[NCOLS];
+  double aa;
+  int i, j, k;
 
-    datafile=fopen("slit_func1.dat", "rb");
-    fread(&osample, sizeof(int), 1, datafile);
-    fread(&ncols, sizeof(int), 1, datafile);
-    fread(&nrows, sizeof(int), 1, datafile);
-    fread(&ny, sizeof(int), 1, datafile);
-    printf("%d %d %d %d\n", osample,ncols,nrows,ny);
+/*
+   bandsol solve a sparse system of linear equations with band-diagonal matrix.
+   Band is assumed to be symmetrix relative to the main diaginal.
+   Parameters are:
+         a is 2D array [n,nd] where n - is the number of equations and nd
+           is the width of the band (3 for tri-diagonal system).
+           nd must be an odd number. The main diagonal should be in a(*,nd/2)
+           The first lower subdiagonal should be in a(1:n-1,nd/2-1), the first
+           upper subdiagonal is in a(0:n-2,nd/2+1) etc. For example:
+                  / 0 0 X X X \
+                  | 0 X X X X |
+                  | X X X X X |
+                  | X X X X X |
+              A = | X X X X X |
+                  | X X X X X |
+                  | X X X X X |
+                  | X X X X 0 |
+                  \ X X X 0 0 /
+         r is the array of RHS of size n.
+   bandsol returns 0 on success, -1 on incorrect size of "a" and -4 on degenerate
+   matrix.
+*/
 
-    fread(mask_data, sizeof(byte), nrows*ncols, datafile);
-    fread(im_data, sizeof(double), nrows*ncols, datafile);
-    fread(ycen_data, sizeof(double), ncols, datafile);
-    fclose(datafile);
+//  if(mod(nd,2)==0) return -1;
 
-    cpl_init(CPL_INIT_DEFAULT);
-    cpl_image *model, *im, *tmp;
-    cpl_vector *ycen, *sL, *sP;
-    cpl_mask *mask;
-
-    model = cpl_image_new(ncols, nrows, CPL_TYPE_DOUBLE);
-    im = cpl_image_wrap_double(ncols, nrows, (double *)im_data);
-    ycen = cpl_vector_wrap(ncols, ycen_data);
-    sL = cpl_vector_new(ny);
-    testfu(sL); 
-
-    mask = cpl_mask_new(ncols, nrows);
-    for (i=0;i < nrows;i++) { // convert to CPL mask, _1 means masked, inverse to mask_data!
-        for (j=0;j < ncols;j++) {
-            if (mask_data[i][j] == 1) {
-                cpl_mask_set(mask, i, j, CPL_BINARY_0);
-                } else {
-                cpl_mask_set(mask, i, j, CPL_BINARY_1);
-                }
-        }
+/* Forward sweep */
+  for(i=0; i<n-1; i++)
+  {
+    aa=a[i+n*(nd/2)];
+//    if(aa==0.e0) return -3;
+    r[i]/=aa;
+    for(j=0; j<nd; j++) a[i+j*n]/=aa;
+    for(j=1; j<min(nd/2+1,n-i); j++)
+    {
+      aa=a[i+j+n*(nd/2-j)];
+//      if(aa==0.e0) return -j;
+      r[i+j]-=r[i]*aa;
+      for(k=0; k<n*(nd-j); k+=n) a[i+j+k]-=a[i+k+n*j]*aa;
     }
+  }
 
-    
-    if (cpl_image_set_bpm(im, mask) != NULL) { return 1; }
-    tmp = cpl_image_collapse_median_create(im , 0, 0, 0);
-    sP = cpl_vector_new_from_image_row(tmp,1);
-    cpl_image_delete(tmp);
+/* Backward sweep */
+  r[n-1]/=a[n-1+n*(nd/2)];
+  for(i=n-1; i>0; i--)
+  {
+    for(j=1; j<=min(nd/2,i); j++) r[i-j]-=r[i]*a[i-j+n*(nd/2+j)];
+//    if(a[i-1+n*(nd/2)]==0.e0) return -5;
+    r[i-1]/=a[i-1+n*(nd/2)];
+  }
 
-    model = slit_func_vert(ncols, nrows, osample, im, ycen, 
-                        sL, sP, 
-                        0.e-6, 1.e0, 1.e-5, 20);
- 
-    return 0;
+//  if(a[n*(nd/2)]==0.e0) return -6;
+  r[0]/=a[n*(nd/2)];
 
-    datafile=fopen("dump.bin", "wb");
-    fwrite(sL, sizeof(double), ny, datafile);
-    fwrite(sP, sizeof(double), ncols, datafile);
-    fwrite(sP, sizeof(double), ncols, datafile);
-    fwrite(im, sizeof(double), ncols*nrows, datafile);
-    fwrite(model, sizeof(double), ncols*nrows, datafile);
-    fclose(datafile);
-
-    return 0;
+  return 0;
 }
