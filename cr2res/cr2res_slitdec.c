@@ -57,8 +57,9 @@ cpl_image * cr2res_slitdec_vert(  cpl_image * img_in, // full detector image
                         int height, // number of pix above and below mid-line
                         int swath, // width per swath
                         int oversample, // factor for oversampling
+                        double smooth_slit, 
                         cpl_vector * slit_func, // slit illumination
-                        cpl_vector * spec, // spectrum
+                        cpl_vector * spec // spectrum
     ){
     /*
 

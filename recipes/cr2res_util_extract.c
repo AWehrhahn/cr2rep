@@ -54,11 +54,8 @@ static int cr2res_util_extract(cpl_frameset *, const cpl_parameterlist *);
 
 static char cr2res_util_extract_description[] =
 "TODO : Descripe here the recipe in / out / params / basic algo\n"
-"science.fits " CR2RES_OBS_1D "\n"
+"science.fits " CR2RES_SCI_1D_RAW "\n"
 "trace.fits " CR2RES_TRACE_OPEN_PROCATG "\n"
-"trace.fits " CR2RES_TRACE_DECKER_PROCATG "\n"
-"trace-decker.fits " CR2RES_FLAT_DECKER_RAW "\n"
-"master_bpm.fits " CR2RES_MASTER_BPM_PROCATG "\n"
 " The recipe produces the following products:\n"
 "\n";
 
@@ -149,6 +146,14 @@ static int cr2res_util_extract_create(cpl_plugin * plugin)
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
+    p = cpl_parameter_new_value("cr2res.cr2res_extract.smooth_slit",
+            CPL_TYPE_DOUBLE,
+            "Smoothing along the slit",
+            "cr2res.cr2res_extract", 0.0);
+    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "smoothslit");
+    cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
+    cpl_parameterlist_append(recipe->parameters, p);
+
     p = cpl_parameter_new_value("cr2res.cr2res_extract.sum_only",
             CPL_TYPE_BOOL,
             "If True, sum along detector column only, instead of slit decomposition",
@@ -215,24 +220,26 @@ static int cr2res_util_extract(
     cpl_frame           *   rawframe ;
     cpl_propertylist    *   applist;
     cpl_image           *   in ;
-    cpl_image           *   trace ;
-    const cpl_parameter * param;
+    cpl_image           *   model ;
+    const cpl_parameter *   param;
     cpl_frameset        *   openslit_frames;
     cpl_frameset        *   decker_frames;
-    int                     npolys;
+    cpl_vector          *   ycen;
+    cpl_vector          *   slit_func;
+    cpl_vector          *   spectrum;
 
     /* RETRIEVE INPUT PARAMETERS */
     param = cpl_parameterlist_find_const(parlist,
-            "cr2res.cr2res_util_extract.min_cluster");
-    int mincluster = cpl_parameter_get_int(param);
+            "cr2res.cr2res_util_extract.oversample");
+    int oversample = cpl_parameter_get_int(param);
     param = cpl_parameterlist_find_const(parlist,
-            "cr2res.cr2res_extract.poly_order");
-    int polyorder = cpl_parameter_get_int(param);
+            "cr2res.cr2res_extract.swath_width");
+    int swath_width = cpl_parameter_get_int(param);
     param = cpl_parameterlist_find_const(parlist,
-            "cr2res.cr2res_extract.smooth");
-    int smoothfactor = cpl_parameter_get_double(param);
+            "cr2res.cr2res_extract.smooth_slit");
+    double smooth_slit = cpl_parameter_get_double(param);
     param = cpl_parameterlist_find_const(parlist,
-            "cr2res.cr2res_extract.cpl-lab");
+            "cr2res.cr2res_extract.sum_only");
     int cpl_lab = cpl_parameter_get_bool(param);
 
     /* Check Parameters */
@@ -260,22 +267,21 @@ static int cr2res_util_extract(
             return -1 ;
         }
         plist = cpl_propertylist_load(cpl_frame_get_filename(rawframe), 0);
-        model = cr2res_slitdec_vert(in, CR2RES_DECKER_NONE, &npolys); //TODO: fix call
-        cpl_msg_debug(__func__,"%d npolys found.",npolys);
+        model = cr2res_slitdec_vert(in,
+                    ycen,
+                    10, // height
+                    swath_width,
+                    oversample,
+                    smooth_slit,
+                    slit_func,
+                    spectrum
+                    ); //TODO: fix call
     }
     cpl_frameset_delete(openslit_frames);
     for (i=0; i<nb_decker; i++){
         rawframe = cpl_frameset_get_position(frameset, i);
     }
     cpl_frameset_delete(decker_frames);
-
-
-    trace = cpl_image_duplicate(in);
-    if (trace == NULL) {
-        cpl_propertylist_delete(plist) ;
-        cpl_image_delete(in) ;
-        return -1 ;
-    }
 
 
     cpl_image_delete(in) ;
@@ -287,12 +293,12 @@ static int cr2res_util_extract(
 
     /* Save Product */
     cpl_dfs_save_image(frameset, plist, parlist, frameset, NULL,
-            trace, CPL_BPP_IEEE_FLOAT, "cr2res_util_extract", applist,
+            model, CPL_BPP_IEEE_FLOAT, "cr2res_util_extract", applist,
             NULL, PACKAGE "/" PACKAGE_VERSION, "cr2res_util_extract.fits") ;
 
     /* Free and return */
+    cpl_image_delete(model) ;
     cpl_propertylist_delete(plist) ;
     cpl_propertylist_delete(applist) ;
-    cpl_image_delete(trace) ;
     return (int)cpl_error_get_code();
 }
