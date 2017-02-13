@@ -262,7 +262,7 @@ static int cr2res_util_extract(
     // TODO: loop over traces.
     /* Derive the ycen array and order height from trace polynomials */
 
-    trace = cpl_polynomial_new(3) ;
+    trace = cpl_polynomial_new(1) ;
     ycen = cpl_vector_new(128);
     cpl_size power = 1;
     cpl_polynomial_set_coeff(trace, &power, 2.0);
@@ -270,12 +270,12 @@ static int cr2res_util_extract(
     cpl_polynomial_set_coeff(trace, &power, 3.0);
     cpl_msg_info(__func__, "%f", cpl_polynomial_eval_1d(trace,15.0,NULL));
     cpl_vector_fill_polynomial(ycen, trace, 10, 1) ;
-    int i;
     for (i=0; i<128; i++){
         //cpl_msg_info(__func__, "%f", cpl_vector_get(ycen,i));
     }
+    int i;
     for (i=0; i<nb_sci; i++){
-        rawframe = cpl_frameset_get_position(frameset, i);
+        rawframe = cpl_frameset_get_position(sci_frames, i);
         in = cpl_image_load(cpl_frame_get_filename(rawframe), CPL_TYPE_DOUBLE,0,0);
         if (in == NULL) {
             cpl_msg_error(__func__, "Cannot load the input image") ;
