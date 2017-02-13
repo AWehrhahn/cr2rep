@@ -217,17 +217,18 @@ static int cr2res_util_extract(
         const cpl_parameterlist *   parlist)
 {
     cpl_propertylist    *   plist;
-    cpl_frame           *   rawframe ;
     cpl_propertylist    *   applist;
-    cpl_image           *   in ;
-    cpl_image           *   model ;
     const cpl_parameter *   param;
     cpl_frameset        *   sci_frames;
     cpl_frameset        *   trace_frames;
-    cpl_vector          *   ycen;
-    cpl_vector          *   slit_func;
-    cpl_vector          *   spectrum;
-    int                     height;
+    cpl_frame           *   rawframe ;
+    cpl_image           *   in ;
+    cpl_image           *   model ;
+    cpl_polynomial      *   trace ;
+    cpl_vector          *   ycen ;
+    cpl_vector          *   slit_func ;
+    cpl_vector          *   spectrum ;
+    int                     height ;
 
     /* RETRIEVE INPUT PARAMETERS */
     param = cpl_parameterlist_find_const(parlist,
@@ -258,7 +259,12 @@ static int cr2res_util_extract(
     int nb_trace = cpl_frameset_get_size(frameset);
     cpl_msg_info(__func__, "Got %d traces and %d raw frames", nb_trace, nb_sci);
 
-    // TODO: loop over traces
+    // TODO: loop over traces.
+    /* Derive the ycen array and order height from trace polynomials */
+
+    trace = cpl_polynomial_new(3) ;
+    cpl_vector_fill_polynomial(ycen, trace, 0, 128) ;
+
 
     int i;
     for (i=0; i<nb_sci; i++){
@@ -282,7 +288,8 @@ static int cr2res_util_extract(
     }
     cpl_frameset_delete(sci_frames);
     cpl_frameset_delete(trace_frames);
-
+    cpl_polynomial_delete(trace);
+    cpl_vector_delete(ycen);
     cpl_image_delete(in) ;
 
     /* Add the product category  */
