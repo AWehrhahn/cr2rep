@@ -31,7 +31,7 @@
 /*-----------------------------------------------------------------------------
                                    Defines
  -----------------------------------------------------------------------------*/
- 
+
 typedef unsigned char byte;
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
@@ -46,7 +46,7 @@ static int bandsol(double *, double *, int, int) ;
 
 /*----------------------------------------------------------------------------*/
 /**
- * @defgroup cr2res_slitdec     Slit Decomposition 
+ * @defgroup cr2res_slitdec     Slit Decomposition
  */
 /*----------------------------------------------------------------------------*/
 
@@ -71,17 +71,18 @@ static int bandsol(double *, double *, int, int) ;
   Swath widht and oversampling are passed through.
 
   The task of this function then is to
-  
+
     -cut out the relevant pixels of the order
-    -shift im in y integers, so that nrows becomes minimal, 
+    -shift im in y integers, so that nrows becomes minimal,
         adapt ycen accordingly
     -loop over swaths, in half-steps
-    -derive a good starting guess for the spectrum, by median-filter 
+    -derive a good starting guess for the spectrum, by median-filter
         average along slit, beware of cosmics
     -run slit_func_vert()
     -merge overlapping swath results by linear weights from swath-width to edge.
     -return re-assembled model image, slit-fu, spectrum, new mask.
- 
+    -calculate the errors and return them.
+
  */
 /*----------------------------------------------------------------------------*/
 int cr2res_slitdec_vert(
@@ -133,7 +134,7 @@ int cr2res_slitdec_vert(
 
 /*----------------------------------------------------------------------------*/
 /**
-  @brief   
+  @brief
   @param    ncols       Swath width in pixels
   @param    nrows       Extraction slit height in pixels
   @param    osample     Subpixel ovsersampling factor
@@ -141,28 +142,28 @@ int cr2res_slitdec_vert(
   @param    ycen        Order centre line offset from pixel row boundary
   @param    sL          Slit function resulting from decomposition, start
                         guess is input, gets overwriteten with result
-  @param    sP          Spectrum resulting from decomposition 
+  @param    sP          Spectrum resulting from decomposition
   @param    model       the model reconstruction of im
   @param    lambda_sP   Smoothing parameter for the spectrum, could be zero
   @param    lambda_sL   Smoothing parameter for the slit function, usually >0
   @param    sP_stop     Fraction of spectyrum change, stop condition
-  @param    maxiter     Max number of iterations 
+  @param    maxiter     Max number of iterations
   @return
  */
 /*----------------------------------------------------------------------------*/
 static double * slit_func_vert(
-        int         ncols,        
-        int         nrows,  
+        int         ncols,
+        int         nrows,
         int         osample,
         double  *   im,
-        double  *   ycen, 
-        double  *   sL,   
-        double  *   sP,   
-        double  *   model,  
-        double      lambda_sP,  
-        double      lambda_sL,  
-        double      sP_stop,   
-        int         maxiter) 
+        double  *   ycen,
+        double  *   sL,
+        double  *   sP,
+        double  *   model,
+        double      lambda_sP,
+        double      lambda_sL,
+        double      sP_stop,
+        int         maxiter)
 {
     int x, y, iy, jy, iy1, iy2, ny, nd, i, j;
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
@@ -182,20 +183,20 @@ static double * slit_func_vert(
     step=1.e0/osample;
 
     /*
-      Construct the omega tensor. Normally it has the dimensionality of 
+      Construct the omega tensor. Normally it has the dimensionality of
       ny*nrows*ncols.
-      The tensor is mostly empty and can be easily compressed to ny*nx, but 
-      this will complicate matrix operations at later stages. I will keep 
+      The tensor is mostly empty and can be easily compressed to ny*nx, but
+      this will complicate matrix operations at later stages. I will keep
       it as it is for now.
-      Note, that omega is used in in the equations for sL, sP and for the model 
-      but it does not involve the data, only the geometry. Thus it can be 
+      Note, that omega is used in in the equations for sL, sP and for the model
+      but it does not involve the data, only the geometry. Thus it can be
       pre-computed once.
       */
     for(x=0; x<ncols; x++) {
-		iy2=(1.e0-ycen[x])*osample; 
-        /* 
-           The initial offset should be reconsidered. 
-           It looks fine but needs theory. 
+		iy2=(1.e0-ycen[x])*osample;
+        /*
+           The initial offset should be reconsidered.
+           It looks fine but needs theory.
          */
 		iy1=iy2-osample;
 
@@ -236,7 +237,7 @@ static double * slit_func_vert(
                 for(x=0; x<ncols; x++)
                 {
                     sum=0.e0;
-                   for(y=0; y<nrows; y++) 
+                   for(y=0; y<nrows; y++)
                        sum+=omega[iy][y][x]*omega[jy][y][x]*mask[y][x];
                    Aij[iy+ny*(jy-iy+osample)]+=sum*sP[x]*sP[x];
                 }
@@ -297,9 +298,9 @@ static double * slit_func_vert(
         	    {
                     sum+=omega[iy][y][x]*sL[iy];
         	    }
-       
+
                 Adiag[x+ncols]+=sum*sum*mask[y][x];
-               
+
                 E[x]+=sum*im[y][x]*mask[y][x];
             }
         }
@@ -326,7 +327,7 @@ static double * slit_func_vert(
             Adiag[ncols-1        ] =-lambda;
             Adiag[ncols*2-1+ncols]+= lambda;
             Adiag[ncols*3-1+ncols] = 0.e0;
- 
+
             info=bandsol(Adiag, E, ncols, 3);
             for(x=0; x<ncols; x++) sP[x]=E[x];
         }
@@ -368,8 +369,8 @@ static double * slit_func_vert(
         {
         	for(x=0;x<ncols; x++)
         	{
-                if(fabs(model[y][x]-im[y][x])>6.*dev) 
-                    mask[y][x]=0; 
+                if(fabs(model[y][x]-im[y][x])>6.*dev)
+                    mask[y][x]=0;
                 else mask[y][x]=1;
         	}
         }
@@ -391,7 +392,7 @@ static double * slit_func_vert(
 /*----------------------------------------------------------------------------*/
 /**
   @brief   solve a sparse system of linear equations
-  @param    a   
+  @param    a
   @param    r
   @param    n
   @param    nd
@@ -414,14 +415,14 @@ static double * slit_func_vert(
                   | X X X X 0 |
                   \ X X X 0 0 /
          r is the array of RHS of size n.
-   bandsol returns 0 on success, -1 on incorrect size of "a" and -4 on 
+   bandsol returns 0 on success, -1 on incorrect size of "a" and -4 on
    degenerate matrix.
  */
 /*----------------------------------------------------------------------------*/
 static int bandsol(
-        double  *   a, 
-        double  *   r, 
-        int         n, 
+        double  *   a,
+        double  *   r,
+        int         n,
         int         nd)
 {
     double aa;
