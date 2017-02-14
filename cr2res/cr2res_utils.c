@@ -317,7 +317,7 @@ cpl_polynomial * cr2res_trace_column_to_polynomial(
 /*----------------------------------------------------------------------------*/
 
 cpl_polynomial ** cr2es_trace_open_get_polynomials(
-            cpl_table * trace, cpl_const order_nb ) {
+            cpl_table * trace, cpl_size order_nb ) {
 
     cpl_polynomial * polys[2];
     char * col_name;
