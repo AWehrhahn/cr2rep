@@ -40,8 +40,8 @@ typedef unsigned char byte;
                                 Functions prototypes
  -----------------------------------------------------------------------------*/
 
-static double * slit_func_vert(int, int, int, double *, double *, double *,
-        double *, double *, double, double, double, int) ;
+static double * slit_func_vert(int, int, int, double *, byte *, double *,
+        double *, double *, double *, double, double, double, int) ;
 static int bandsol(double *, double *, int, int) ;
 
 /*----------------------------------------------------------------------------*/
@@ -106,19 +106,59 @@ int cr2res_slitdec_vert(
     return 0 ;
     /* END TMP */
 
-    double * model;
+    int i, nswaths, row, col;
+    double pixval;
+    int * ycen_int;
+    int badpix;
+    double * ycen_rest;
+    double * img_sw_data;
+    double * model_sw;
+    cpl_size lenx;
+    cpl_image * img_sw;
+    cpl_image * tmp;
+    cpl_vector * spec_sw;
+
+    lenx = cpl_image_get_size_x(img_in);
+    nswaths = (lenx / swath) +1; // Last swath is partial
+
+    img_sw = cpl_image_new(swath, height, CPL_TYPE_DOUBLE);
+    ycen_int = cpl_malloc(lenx*sizeof(int));
+    ycen_rest = cpl_malloc(lenx*sizeof(double));
+    for (i=0;i<lenx;i++){
+        ycen_int[i] = (int)ycen[i] ;
+        ycen_rest[i] = ycen[i] %1 ;
+    }
+
+
+    for (i=0,i<nswaths;i++){
+
+        for(col=1; col<=swath; col++){  // col is x-index in cut-out
+            for(row=1;row<=height;row++){ // row is y-index in cut-out
+                x = i*swath + col; // coords in large image
+                y = ycen_int[x] + row;
+                pixval = cpl_image_get(img_in, x, y, &badpix);
+                cpl_image_set(img_sw, col, row, pixval);
+            }
+        }
+
+        img_sw_data = cpl_image_get_data(img_sw);
+        tmp = cpl_image_collapse_median_create(img_sw, 0, 0, 0);
+        spec_sw = cpl_vector_new_from_image_row(tmp,1);
+        spec_sw_data = cpl_vector_get_data(spec_sw);
+
+        /* Finally ready to call the slit-decomp */
+        model_sw = slit_func_vert(swath, height, oversample,
+                        img_sw_data, ycen_sw, slitfu_sw, spec_sw_data,
+                        0.e-6, smoothfactor, 1.0e-5, 20);
+
+    }
+
+
+    cpl_vector_delete(spec_sw);
+    cpl_image_delete(tmp);
+
     cpl_mask * mask_cpl;
     cpl_binary * mask_cpl_data;
-
-    double *sP, *sL, *ycen;
-    sP = cpl_vector_get_data(sP_cpl);
-    sL = cpl_vector_get_data(sL_cpl);
-    ycen = cpl_vector_get_data(ycen_cpl);
-    double im[nrows][ncols];
-    memcpy(im, cpl_image_get_data(img_in), sizeof(im));
-
-    model = cpl_image_get_data(img_in);
-
     /* reconstruct mask = inverse of the bad-pixel-mask attached to the image */
     mask_cpl = cpl_image_get_bpm(img_in);
     cpl_mask_not(mask_cpl);
@@ -127,7 +167,11 @@ int cr2res_slitdec_vert(
         for(j=0; j<ncols;j++) mask[i][j] = (byte)mask_cpl_data[i*ncols + j];
     }
 
-    return cpl_image_wrap_double(ncols, nrows, (double *)model);
+    //cpl_image_wrap_double(ncols, nrows, (double *)model);
+
+    cpl_free(img_sw);
+
+    return 0;
 }
 
 /** @} */
@@ -139,6 +183,7 @@ int cr2res_slitdec_vert(
   @param    nrows       Extraction slit height in pixels
   @param    osample     Subpixel ovsersampling factor
   @param    im          Image to be decomposed
+  @param    mask        Byte mask of same dimension as image
   @param    ycen        Order centre line offset from pixel row boundary
   @param    sL          Slit function resulting from decomposition, start
                         guess is input, gets overwriteten with result
@@ -151,11 +196,12 @@ int cr2res_slitdec_vert(
   @return
  */
 /*----------------------------------------------------------------------------*/
-static double * slit_func_vert(
+int slit_func_vert(
         int         ncols,
         int         nrows,
         int         osample,
         double  *   im,
+        byte    *   mask,
         double  *   ycen,
         double  *   sL,
         double  *   sP,
@@ -386,7 +432,7 @@ static double * slit_func_vert(
         /* Check the convergence */
     } while(iter++ < maxiter && sP_change > sP_stop*sP_max);
 
-    return model;
+    return 0;
 }
 
 /*----------------------------------------------------------------------------*/
