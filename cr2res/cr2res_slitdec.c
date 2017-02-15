@@ -24,7 +24,7 @@
 /*-----------------------------------------------------------------------------
                                    Includes
  -----------------------------------------------------------------------------*/
-
+#include <math.h>
 #include <cpl.h>
 #include "cr2res_slitdec.h"
 
@@ -39,8 +39,20 @@
                                 Functions prototypes
  -----------------------------------------------------------------------------*/
 
-static double * slit_func_vert(int, int, int, double *, int *, double *,
-        double *, double *, double *, double, double, double, int) ;
+ int slit_func_vert(
+         int         ncols,
+         int         nrows,
+         int         osample,
+         double  *   im,
+         int     *   mask,
+         double  *   ycen,
+         double  *   sL,
+         double  *   sP,
+         double  *   model,
+         double      lambda_sP,
+         double      lambda_sL,
+         double      sP_stop,
+         int         maxiter) ;
 static int bandsol(double *, double *, int, int) ;
 
 /*----------------------------------------------------------------------------*/
@@ -95,23 +107,17 @@ int cr2res_slitdec_vert(
         cpl_vector  **  spec,
         cpl_image   **  model)
 {
-    /* TMP */
-    /* Return fake data */
-    *slit_func = cpl_vector_new(height) ;
-    *spec = cpl_vector_duplicate(ycen) ;
-    cpl_vector_multiply(*spec, ycen) ;
-    *model = cpl_image_duplicate(img_in) ;
-    cpl_image_multiply(*model, img_in) ;
-    return 0 ;
-    /* END TMP */
-
-    int i, nswaths, row, col;
+    int i, j, nswaths;
+    int row, col, x, y;
     int sw_start, sw_end;
     double pixval;
     int * ycen_int;
     int badpix;
     double * ycen_rest;
+    double * ycen_sw;
     double * img_sw_data;
+    double * spec_sw_data;
+    double * slitfu_sw_data;
     double * model_sw;
     int * mask_sw;
     cpl_size lenx;
@@ -123,20 +129,20 @@ int cr2res_slitdec_vert(
     lenx = cpl_image_get_size_x(img_in);
     nswaths = (lenx / swath) ; // TODO: Allow last swath be partial
 
-    model_sw = cpl_malloc(height*swath*sizeof(double));
     mask_sw = cpl_malloc(height*swath*sizeof(int));
-    img_sw = cpl_image_new(height, swath CPL_TYPE_DOUBLE);
+    model_sw = cpl_malloc(height*swath*sizeof(double));
+    img_sw = cpl_image_new(height, swath, CPL_TYPE_DOUBLE);
     ycen_int = cpl_malloc(lenx*sizeof(int));
     ycen_rest = cpl_malloc(lenx*sizeof(double));
     for (i=0;i<lenx;i++){
-        ycen_int[i] = (int)ycen[i] ;
-        ycen_rest[i] = ycen[i] %1 ;
+        ycen_int[i] = (int)cpl_vector_get(ycen,i) ;
+        ycen_rest[i] = fmod(cpl_vector_get(ycen,i), 1.0) ;
     }
 
 
-    for (i=0,i<nswaths;i++){
+    for (i=0;i<nswaths;i++){
         sw_start = i*swath;
-        sw_end = (i+1)*swath -1;
+        sw_end = (i+1)*swath;
 
         for(col=1; col<=swath; col++){      // col is x-index in cut-out
             for(row=1;row<=height;row++){   // row is y-index in cut-out
@@ -144,8 +150,8 @@ int cr2res_slitdec_vert(
                 y = ycen_int[x] + row;
                 pixval = cpl_image_get(img_in, x, y, &badpix);
                 cpl_image_set(img_sw, row, col, pixval);
-                if (badpix ==0) mask[row][col] = 1;
-                else mask[row][col] = 0;
+                if (badpix ==0) mask_sw[row*swath+col] = 1;
+                else mask_sw[row*swath+col] = 0;
             }
         }
 
@@ -160,16 +166,14 @@ int cr2res_slitdec_vert(
         cpl_image_delete(tmp);
         slitfu_sw_data = cpl_vector_get_data(slitfu_sw);
 
-        ycen_sw = cpl_vector_extract(ycen_rest, sw_start ,sw_end, 1);
-        cpl_msg_info(__func__, "ycen_sw has length %d, should be %d",
-            cpl_vector_get_size(ycen_sw), swath) ;
+        for (j=sw_start;j<sw_end;j++) ycen_sw[j-sw_start] = ycen_rest[j];
 
         /* Finally ready to call the slit-decomp */
         slit_func_vert(swath, height, oversample, img_sw_data, mask_sw,
                         ycen_sw, slitfu_sw_data, spec_sw_data, model_sw,
-                        0.e-6, smoothfactor, 1.0e-5, 20);
+                        0.e-6, smooth_slit, 1.0e-5, 20);
 
-        *model
+
     }
 
 
@@ -288,14 +292,14 @@ int slit_func_vert(
                 {
                     sum=0.e0;
                    for(y=0; y<nrows; y++)
-                       sum+=omega[iy][y][x]*omega[jy][y][x]*mask[y][x];
+                       sum+=omega[iy][y][x]*omega[jy][y][x]*mask[y*ncols+x];
                    Aij[iy+ny*(jy-iy+osample)]+=sum*sP[x]*sP[x];
                 }
             }
             for(x=0; x<ncols; x++)
            	{
            		sum=0.e0;
-                for(y=0; y<nrows; y++) sum+=omega[iy][y][x]*mask[y][x]*im[y][x];
+                for(y=0; y<nrows; y++) sum+=omega[iy][y][x]*mask[y*ncols+x]*im[y*ncols+x];
                 bj[iy]+=sum*sP[x];
             }
             diag_tot+=Aij[iy+ny*osample];
@@ -349,9 +353,9 @@ int slit_func_vert(
                     sum+=omega[iy][y][x]*sL[iy];
         	    }
 
-                Adiag[x+ncols]+=sum*sum*mask[y][x];
+                Adiag[x+ncols]+=sum*sum*mask[y*ncols+x];
 
-                E[x]+=sum*im[y][x]*mask[y][x];
+                E[x]+=sum*im[y*ncols+x]*mask[y*ncols+x];
             }
         }
 
@@ -397,7 +401,7 @@ int slit_func_vert(
             {
         	    sum=0.e0;
         	    for(iy=0; iy<ny; iy++) sum+=omega[iy][y][x]*sL[iy];
-        	    model[y][x]=sum*sP[x];
+        	    model[y*ncols+x]=sum*sP[x];
             }
         }
 
@@ -408,8 +412,9 @@ int slit_func_vert(
         {
         	for(x=0;x<ncols; x++)
         	{
-                sum+=mask[y][x]*(model[y][x]-im[y][x])*(model[y][x]-im[y][x]);
-                isum+=mask[y][x];
+                sum+=mask[y*ncols+x]*(model[y*ncols+x]-im[y*ncols+x]) *
+                                (model[y*ncols+x]-im[y*ncols+x]);
+                isum+=mask[y*ncols+x];
         	}
         }
         dev=sqrt(sum/isum);
@@ -419,9 +424,9 @@ int slit_func_vert(
         {
         	for(x=0;x<ncols; x++)
         	{
-                if(fabs(model[y][x]-im[y][x])>6.*dev)
-                    mask[y][x]=0;
-                else mask[y][x]=1;
+                if(fabs(model[y*ncols+x]-im[y*ncols+x])>6.*dev)
+                    mask[y*ncols+x]=0;
+                else mask[y*ncols+x]=1;
         	}
         }
 
