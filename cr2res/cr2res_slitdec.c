@@ -32,7 +32,6 @@
                                    Defines
  -----------------------------------------------------------------------------*/
 
-typedef unsigned char byte;
 #define min(a,b) (((a)<(b))?(a):(b))
 #define max(a,b) (((a)>(b))?(a):(b))
 
@@ -40,7 +39,7 @@ typedef unsigned char byte;
                                 Functions prototypes
  -----------------------------------------------------------------------------*/
 
-static double * slit_func_vert(int, int, int, double *, byte *, double *,
+static double * slit_func_vert(int, int, int, double *, int *, double *,
         double *, double *, double *, double, double, double, int) ;
 static int bandsol(double *, double *, int, int) ;
 
@@ -107,21 +106,26 @@ int cr2res_slitdec_vert(
     /* END TMP */
 
     int i, nswaths, row, col;
+    int sw_start, sw_end;
     double pixval;
     int * ycen_int;
     int badpix;
     double * ycen_rest;
     double * img_sw_data;
     double * model_sw;
+    int * mask_sw;
     cpl_size lenx;
     cpl_image * img_sw;
     cpl_image * tmp;
     cpl_vector * spec_sw;
+    cpl_vector * slitfu_sw;
 
     lenx = cpl_image_get_size_x(img_in);
-    nswaths = (lenx / swath) +1; // Last swath is partial
+    nswaths = (lenx / swath) ; // TODO: Allow last swath be partial
 
-    img_sw = cpl_image_new(swath, height, CPL_TYPE_DOUBLE);
+    model_sw = cpl_malloc(height*swath*sizeof(double));
+    mask_sw = cpl_malloc(height*swath*sizeof(int));
+    img_sw = cpl_image_new(height, swath CPL_TYPE_DOUBLE);
     ycen_int = cpl_malloc(lenx*sizeof(int));
     ycen_rest = cpl_malloc(lenx*sizeof(double));
     for (i=0;i<lenx;i++){
@@ -131,44 +135,46 @@ int cr2res_slitdec_vert(
 
 
     for (i=0,i<nswaths;i++){
+        sw_start = i*swath;
+        sw_end = (i+1)*swath -1;
 
-        for(col=1; col<=swath; col++){  // col is x-index in cut-out
-            for(row=1;row<=height;row++){ // row is y-index in cut-out
-                x = i*swath + col; // coords in large image
+        for(col=1; col<=swath; col++){      // col is x-index in cut-out
+            for(row=1;row<=height;row++){   // row is y-index in cut-out
+                x = i*swath + col;          // coords in large image
                 y = ycen_int[x] + row;
                 pixval = cpl_image_get(img_in, x, y, &badpix);
-                cpl_image_set(img_sw, col, row, pixval);
+                cpl_image_set(img_sw, row, col, pixval);
+                if (badpix ==0) mask[row][col] = 1;
+                else mask[row][col] = 0;
             }
         }
 
         img_sw_data = cpl_image_get_data(img_sw);
         tmp = cpl_image_collapse_median_create(img_sw, 0, 0, 0);
         spec_sw = cpl_vector_new_from_image_row(tmp,1);
+        cpl_image_delete(tmp);
         spec_sw_data = cpl_vector_get_data(spec_sw);
 
+        tmp = cpl_image_collapse_median_create(img_sw, 1, 0, 0);
+        slitfu_sw = cpl_vector_new_from_image_column(tmp,1);
+        cpl_image_delete(tmp);
+        slitfu_sw_data = cpl_vector_get_data(slitfu_sw);
+
+        ycen_sw = cpl_vector_extract(ycen_rest, sw_start ,sw_end, 1);
+        cpl_msg_info(__func__, "ycen_sw has length %d, should be %d",
+            cpl_vector_get_size(ycen_sw), swath) ;
+
         /* Finally ready to call the slit-decomp */
-        model_sw = slit_func_vert(swath, height, oversample,
-                        img_sw_data, ycen_sw, slitfu_sw, spec_sw_data,
+        slit_func_vert(swath, height, oversample, img_sw_data, mask_sw,
+                        ycen_sw, slitfu_sw_data, spec_sw_data, model_sw,
                         0.e-6, smoothfactor, 1.0e-5, 20);
 
+        *model
     }
 
 
     cpl_vector_delete(spec_sw);
-    cpl_image_delete(tmp);
-
-    cpl_mask * mask_cpl;
-    cpl_binary * mask_cpl_data;
-    /* reconstruct mask = inverse of the bad-pixel-mask attached to the image */
-    mask_cpl = cpl_image_get_bpm(img_in);
-    cpl_mask_not(mask_cpl);
-    mask_cpl_data = cpl_mask_get_data(mask_cpl);
-    for(i=0; i<nrows;i++){
-        for(j=0; j<ncols;j++) mask[i][j] = (byte)mask_cpl_data[i*ncols + j];
-    }
-
-    //cpl_image_wrap_double(ncols, nrows, (double *)model);
-
+    cpl_vector_delete(slitfu_sw);
     cpl_free(img_sw);
 
     return 0;
@@ -183,7 +189,7 @@ int cr2res_slitdec_vert(
   @param    nrows       Extraction slit height in pixels
   @param    osample     Subpixel ovsersampling factor
   @param    im          Image to be decomposed
-  @param    mask        Byte mask of same dimension as image
+  @param    mask        int mask of same dimension as image
   @param    ycen        Order centre line offset from pixel row boundary
   @param    sL          Slit function resulting from decomposition, start
                         guess is input, gets overwriteten with result
@@ -201,7 +207,7 @@ int slit_func_vert(
         int         nrows,
         int         osample,
         double  *   im,
-        byte    *   mask,
+        int     *   mask,
         double  *   ycen,
         double  *   sL,
         double  *   sP,
@@ -215,10 +221,8 @@ int slit_func_vert(
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
 	int info, iter, isum;
     double omega[ny][nrows][ncols];
-    byte mask[nrows][ncols];
     double E[ncols];
     double sP_old[ncols];
-    double model[nrows][ncols];
     double Aij[ny*ny];
     double bj[ny];
     double Adiag[ncols*3];
