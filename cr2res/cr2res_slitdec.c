@@ -108,7 +108,7 @@ int cr2res_slitdec_vert(
         hdrl_image  **  model)
 {
     int i, j, nswaths;
-    int row, col, x, y;
+    int row, col, x, y, ny_os;
     int sw_start, sw_end;
     double pixval;
     int * ycen_int;
@@ -117,7 +117,7 @@ int cr2res_slitdec_vert(
     double * ycen_sw;
     double * img_sw_data;
     double * spec_sw_data;
-    double * slitfu_sw_data;
+    double * slitfu_os;
     double * model_sw;
     int * mask_sw;
     cpl_size lenx;
@@ -130,6 +130,7 @@ int cr2res_slitdec_vert(
     cpl_vector * slitfu;
 
     lenx = cpl_image_get_size_x(img_in);
+    ny_os = (height*(oversample+1)) +1; // number of rows after oversampling
     nswaths = (lenx / swath) ; // TODO: Allow last swath be partial
 
     mask_sw = cpl_malloc(height*swath*sizeof(int));
@@ -138,6 +139,7 @@ int cr2res_slitdec_vert(
     ycen_int = cpl_malloc(lenx*sizeof(int));
     ycen_rest = cpl_malloc(lenx*sizeof(double));
     ycen_sw = cpl_malloc(swath*sizeof(double));
+    slitfu_os = cpl_malloc( ny_os * sizeof(double));
 
     for (i=0;i<lenx;i++){
         ycen_int[i] = (int)cpl_vector_get(ycen,i) ;
@@ -179,19 +181,17 @@ int cr2res_slitdec_vert(
         tmp = cpl_image_collapse_median_create(img_sw, 1, 0, 0);
         slitfu_sw = cpl_vector_new_from_image_column(tmp,1);
         cpl_image_delete(tmp);
-        slitfu_sw_data = cpl_vector_get_data(slitfu_sw);
 
         for (j=sw_start;j<sw_end;j++) ycen_sw[j-sw_start] = ycen_rest[j];
 
         /* Finally ready to call the slit-decomp */
-        //cpl_vector_dump(spec_sw,stdout);
+        cpl_vector_dump(spec_sw,stdout);
         printf("%d\n", oversample) ;
         slit_func_vert(swath, height, oversample, img_sw_data, mask_sw,
-                        ycen_sw, slitfu_sw_data, spec_sw_data, model_sw,
+                        ycen_sw, slitfu_os, spec_sw_data, model_sw,
                         0.0, smooth_slit, 1.0e-5, 20);
-        return -1 ;
-
-        //cpl_vector_dump(spec_sw,stdout);
+        
+        cpl_vector_dump(spec_sw,stdout);
 
         for(col=0; col<swath; col++){      // col is x-index in cut-out
             for(row=0;row<height;row++){   // row is y-index in cut-out
@@ -224,6 +224,7 @@ int cr2res_slitdec_vert(
     cpl_free(ycen_int) ;
     cpl_free(ycen_rest);
     cpl_free(ycen_sw);
+    cpl_free(slitfu_os);
 
     *slit_func = slitfu;
     *spec = spc;
