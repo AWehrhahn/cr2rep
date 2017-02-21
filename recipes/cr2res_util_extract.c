@@ -293,6 +293,11 @@ static int cr2res_util_extract(
 
         /* Load the trace table of this detector */
         trace_table = cr2res_io_load_TRACE_OPEN(trace_file, det_nr) ;
+        if (trace_table == NULL) {
+            cpl_msg_error(__func__, "Failed to get trace table for detector #%d", det_nr);
+            cpl_error_set(__func__, CPL_ERROR_CONTINUE) ;
+            continue ;
+        }
 
         /* Get the list of orders in the trace table */
         orders = cr2res_trace_get_order_numbers(trace_table,
@@ -309,7 +314,6 @@ static int cr2res_util_extract(
         model_master[det_nr-1] = hdrl_image_create(science_ima, NULL) ;
         hdrl_image_mul_scalar(model_master[det_nr-1], (hdrl_value){0.0, 0.0}) ;
 
-        for (i=0 ; i<3; i++) printf("%d\n",nb_orders[i]);
         /* Loop over the orders and extract them */
         for (i=0 ; i<nb_orders[det_nr-1] ; i++) {
             cpl_msg_info(__func__, "Process order number %d", orders[i]) ;
