@@ -131,7 +131,7 @@ int cr2res_slitdec_vert(
     cpl_vector * slitfu;
 
     lenx = cpl_image_get_size_x(img_in);
-    ny_os = (height*(oversample+1)) +1; // number of rows after oversampling
+    ny_os = oversample*(height+1) +1; // number of rows after oversampling
     nswaths = (lenx / swath) ; // TODO: Allow last swath be partial
 
     mask_sw = cpl_malloc(height*swath*sizeof(int));
@@ -156,7 +156,7 @@ int cr2res_slitdec_vert(
     for (i=0;i<nswaths;i++){
         sw_start = i*swath;
         sw_end = (i+1)*swath;
-
+        printf("%d %d %d %d\n", sw_start+1,ycen_int[0] - (height/2),sw_end+1,ycen_int[0] + (height/2));
         for(col=0; col<swath; col++){      // col is x-index in cut-out
             x = i*swath + col;          // coords in large image
             for(row=0;row<height;row++){   // row is y-index in cut-out
@@ -167,8 +167,7 @@ int cr2res_slitdec_vert(
                 else mask_sw[row*swath+col] = 0;
             }
         }
-        printf("%d %d %d %d\n", sw_start,ycen_int[x] - (height/2),sw_end,ycen_int[x] + (height/2));
-        cpl_plot_image(NULL,NULL,NULL,cpl_image_extract(img_in,sw_start,ycen_int[x] - (height/2),sw_end,ycen_int[x] + (height/2)));
+        cpl_image_save(img_sw, "tmp.fits", CPL_TYPE_FLOAT, NULL, CPL_IO_CREATE);
 
         img_median = cpl_image_get_median(img_sw);
         for (j=0;j<ny_os;j++) cpl_vector_set(slitfu_sw,j,img_median);
@@ -178,6 +177,7 @@ int cr2res_slitdec_vert(
         cpl_image_delete(tmp);
         spec_sw_data = cpl_vector_get_data(spec_sw);
         for (j=sw_start;j<sw_end;j++) ycen_sw[j-sw_start] = ycen_rest[j];
+        for (j=0;j<swath;j++) printf("%f\n", ycen_sw[j]);
 
         /* Finally ready to call the slit-decomp */
         slit_func_vert(swath, height, oversample, img_sw_data, mask_sw,
@@ -277,6 +277,7 @@ static int slit_func_vert(
     nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
     step=1.e0/osample;
+    printf("%d %d %d\n", ncols, osample, ny);
     double omega[ny][nrows][ncols];
     double Aij[ny*ny];
     double bj[ny];
@@ -292,8 +293,10 @@ static int slit_func_vert(
       but it does not involve the data, only the geometry. Thus it can be
       pre-computed once.
       */
+      for(x=0; x<ncols; x++) {
+      printf("%d %d\n", x, ycen[x]); }
     for(x=0; x<ncols; x++) {
-        printf("%d %d\n", ncols, x);
+        continue;
 		iy2=(1.e0-ycen[x])*osample;
         /*
            The initial offset should be reconsidered.
