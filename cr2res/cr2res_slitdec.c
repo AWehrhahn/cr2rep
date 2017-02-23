@@ -289,7 +289,6 @@ static int slit_func_vert(
       pre-computed once.
       */
     for(x=0; x<ncols; x++) {
-        continue;
 		iy2=(1.e0-ycen[x])*osample;
         /*
            The initial offset should be reconsidered.
