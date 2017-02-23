@@ -345,7 +345,6 @@ static int cr2res_util_extract(
                 model_tmp = NULL ;
             }
             cpl_vector_delete(y_center) ;
-            return -1;
 
             /* Update the model global image */
             if (model_tmp != NULL) {

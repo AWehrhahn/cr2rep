@@ -156,7 +156,7 @@ int cr2res_slitdec_vert(
     for (i=0;i<nswaths;i++){
         sw_start = i*swath;
         sw_end = (i+1)*swath;
-        printf("%d %d %d %d\n", sw_start+1,ycen_int[0] - (height/2),sw_end+1,ycen_int[0] + (height/2));
+        printf("Indices: %d %d %d %d\n", sw_start+1,ycen_int[0] - (height/2),sw_end+1,ycen_int[0] + (height/2));
         for(col=0; col<swath; col++){      // col is x-index in cut-out
             x = i*swath + col;          // coords in large image
             for(row=0;row<height;row++){   // row is y-index in cut-out
@@ -177,7 +177,6 @@ int cr2res_slitdec_vert(
         cpl_image_delete(tmp);
         spec_sw_data = cpl_vector_get_data(spec_sw);
         for (j=sw_start;j<sw_end;j++) ycen_sw[j-sw_start] = ycen_rest[j];
-        for (j=0;j<swath;j++) printf("%f\n", ycen_sw[j]);
 
         /* Finally ready to call the slit-decomp */
         slit_func_vert(swath, height, oversample, img_sw_data, mask_sw,
@@ -205,13 +204,6 @@ int cr2res_slitdec_vert(
     // divide by nswaths to make the slitfu into the average over all swaths.
     cpl_vector_divide_scalar(slitfu,nswaths);
 
-
-    cpl_vector_dump(slitfu,stdout);
-    cpl_plot_vector(NULL,NULL,NULL,slitfu);
-    cpl_plot_image(NULL,NULL,NULL,img_sw);
-
-
-
     // TODO: Update BPM in img_out
     // TODO: Calculate error and return it.
 
@@ -226,7 +218,10 @@ int cr2res_slitdec_vert(
     *slit_func = slitfu;
     *spec = spc;
     *model = hdrl_image_create(img_out, NULL);
-    cpl_image_delete(img_out) ;
+
+    // If I don't read hrdl wrong, hdrl_image_create() does not copy memory but wrap,
+    // so no delete needed here.
+    //cpl_image_delete(img_out) ;
 
     return 0;
 }
@@ -271,17 +266,17 @@ static int slit_func_vert(
     int x, y, iy, jy, iy1, iy2, ny, nd, i, j;
 	double step, d1, d2, sum, norm, dev, lambda, diag_tot, sP_change, sP_max;
 	int info, iter, isum;
-    double E[ncols];
-    double sP_old[ncols];
     /* Initialise */
     nd=2*osample+1;
 	ny=osample*(nrows+1)+1; /* The size of the sf array */
     step=1.e0/osample;
-    printf("%d %d %d\n", ncols, osample, ny);
-    double omega[ny][nrows][ncols];
-    double Aij[ny*ny];
-    double bj[ny];
-    double Adiag[ncols*3];
+    double * E = cpl_malloc(ncols*sizeof(double)); // double E[ncols];
+    double * sP_old = cpl_malloc(ncols*sizeof(double)); // double sP_old[ncols];
+    double * Aij = cpl_malloc(ny*ny*sizeof(double)); // double Aij[ny*ny];
+    double * bj = cpl_malloc(ny*sizeof(double)); // double bj[ny];
+    double * Adiag = cpl_malloc(ncols*3*sizeof(double)); // double Adiag[ncols*3];
+    double * omega = cpl_malloc(ny*nrows*ncols*sizeof(double)); // double omega[ny][nrows][ncols];
+    // index as: [iy+(y*ny)+(x*ny*nrows)]
 
     /*
       Construct the omega tensor. Normally it has the dimensionality of
@@ -293,8 +288,6 @@ static int slit_func_vert(
       but it does not involve the data, only the geometry. Thus it can be
       pre-computed once.
       */
-      for(x=0; x<ncols; x++) {
-      printf("%d %d\n", x, ycen[x]); }
     for(x=0; x<ncols; x++) {
         continue;
 		iy2=(1.e0-ycen[x])*osample;
@@ -313,11 +306,11 @@ static int slit_func_vert(
 			iy2+=osample;
 			for(iy=0; iy<ny; iy++)
 			{
-				if(iy<iy1) omega[iy][y][x]=0.;
-				else if(iy==iy1) omega[iy][y][x]=d1;
-				else if(iy>iy1 && iy<iy2) omega[iy][y][x]=step;
-				else if(iy==iy2) omega[iy][y][x]=d2;
-				else omega[iy][y][x]=0.;
+				if(iy<iy1) omega[iy+(y*ny)+(x*ny*nrows)]=0.;
+				else if(iy==iy1) omega[iy+(y*ny)+(x*ny*nrows)]=d1;
+				else if(iy>iy1 && iy<iy2) omega[iy+(y*ny)+(x*ny*nrows)]=step;
+				else if(iy==iy2) omega[iy+(y*ny)+(x*ny*nrows)]=d2;
+				else omega[iy+(y*ny)+(x*ny*nrows)]=0.;
 			}
 		}
 	}
@@ -341,14 +334,14 @@ static int slit_func_vert(
                 {
                     sum=0.e0;
                    for(y=0; y<nrows; y++)
-                       sum+=omega[iy][y][x]*omega[jy][y][x]*mask[y*ncols+x];
+                       sum+=omega[iy+(y*ny)+(x*ny*nrows)]*omega[jy+(y*ny)+(x*ny*nrows)]*mask[y*ncols+x];
                    Aij[iy+ny*(jy-iy+osample)]+=sum*sP[x]*sP[x];
                 }
             }
             for(x=0; x<ncols; x++)
            	{
            		sum=0.e0;
-                for(y=0; y<nrows; y++) sum+=omega[iy][y][x]*mask[y*ncols+x]*im[y*ncols+x];
+                for(y=0; y<nrows; y++) sum+=omega[iy+(y*ny)+(x*ny*nrows)]*mask[y*ncols+x]*im[y*ncols+x];
                 bj[iy]+=sum*sP[x];
             }
             diag_tot+=Aij[iy+ny*osample];
@@ -394,7 +387,7 @@ static int slit_func_vert(
             	sum=0.e0;
         	    for(iy=0; iy<ny; iy++)
         	    {
-                    sum+=omega[iy][y][x]*sL[iy];
+                    sum+=omega[iy+(y*ny)+(x*ny*nrows)]*sL[iy];
         	    }
 
                 Adiag[x+ncols]+=sum*sum*mask[y*ncols+x];
@@ -442,7 +435,7 @@ static int slit_func_vert(
             for(x=0; x<ncols; x++)
             {
         	    sum=0.e0;
-        	    for(iy=0; iy<ny; iy++) sum+=omega[iy][y][x]*sL[iy];
+        	    for(iy=0; iy<ny; iy++) sum+=omega[iy+(y*ny)+(x*ny*nrows)]*sL[iy];
         	    model[y*ncols+x]=sum*sP[x];
             }
         }
@@ -482,6 +475,13 @@ static int slit_func_vert(
         }
         /* Check the convergence */
     } while(iter++ < maxiter && sP_change > sP_stop*sP_max);
+
+    cpl_free(E);
+    cpl_free(sP_old);
+    cpl_free(omega);
+    cpl_free(Aij);
+    cpl_free(bj);
+    cpl_free(Adiag);
 
     return 0;
 }
