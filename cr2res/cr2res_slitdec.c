@@ -76,7 +76,7 @@ static int cr2res_slitdec_adjust_swath(int sw, int nx);
   @param    slit_func   the returned slit function
   @param    spec        the returned spectrum
   @param    model       the returned model
-  @return   int 0 if ok, -1 otherwise
+  @return   0 if ok, -1 otherwise
 
   This func takes a single image (contining many orders), and a *single*
   order definition in the form of central y-corrds., plus the height.
