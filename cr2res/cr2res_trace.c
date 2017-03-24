@@ -236,7 +236,7 @@ cpl_mask * cr2res_trace_detect(
     if (ima == NULL) return NULL ;
 
     /* TODO This needs to come from a static calibration, each band */
-    int                     ordersep=10;
+    int                     ordersep=70;
     /* TODO Set to read-noise later, also input-para */
     double                  thresh=10.0;
 
