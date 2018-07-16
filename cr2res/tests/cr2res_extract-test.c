@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cpl.h>
+#include <hdrl.h>
 #include <cr2res_dfs.h>
 #include <cr2res_extract.h>
 #include <cr2res_trace.h>
