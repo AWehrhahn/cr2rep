@@ -1292,7 +1292,7 @@ static int cr2res_extract_xi_zeta_tensors(
     zeta[x].iy=0;
     zeta[x].w =0.;
   }
-  for(x=0; x<ncols*nrows; x++)
+  for(x=0; x<ncols*nrows; x++){
     m_zeta[x] = 0;
   }
 //    printf("%g %g %g; %g %g %g; %g %g %g\n",PSF_curve[313][0],PSF_curve[313][1],PSF_curve[313][2]
