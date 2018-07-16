@@ -91,7 +91,7 @@ static void test_cr2res_slitdec_vert(void)
     int height = 70;
     int swath = 50;
     int oversample = 1;
-    int smooth_slit = 0.1;
+    double smooth_slit = 0.1;
     int width = cpl_image_get_size_x(img_in);
 
     cpl_vector ** slit_func;
