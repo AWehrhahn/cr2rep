@@ -1251,9 +1251,9 @@ static int cr2res_extract_xi_zeta_tensors(
                                                    /* ycen_offset[0]=0, absolute ycen=y_lower_lim+ycen_offset+ycen */
                     int osample,                   /* Subpixel ovsersampling factor                         */
                     double * PSF_curve    /* Parabolic fit to the slit image curvature.            */
-                                                   /* For column d_x = PSF_curve[ncols][0] +                */
-                                                   /*                  PSF_curve[ncols][1] *d_y +           */
-                                                   /*                  PSF_curve[ncols][2] *d_y^2,          */
+                                                   /* For column d_x = PSF_curve[ncols *  3  + 0] +                */
+                                                   /*                  PSF_curve[ncols *  3  + 1] *d_y +           */
+                                                   /*                  PSF_curve[ncols *  3  + 2] *d_y^2,          */
                                                    /* where d_y is the offset from the central line ycen.   */
                                                    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
                                                    /* does not stick out of column x.                       */
@@ -1292,12 +1292,12 @@ static int cr2res_extract_xi_zeta_tensors(
     zeta[x].iy=0;
     zeta[x].w =0.;
   }
-  for(x=0; x<ncols*nrows; x++)
+  for(x=0; x<ncols*nrows; x++){
     m_zeta[x] = 0;
   }
-//    printf("%g %g %g; %g %g %g; %g %g %g\n",PSF_curve[313][0],PSF_curve[313][1],PSF_curve[313][2]
-//                                           ,PSF_curve[314][0],PSF_curve[314][1],PSF_curve[314][2]
-//                                           ,PSF_curve[315][0],PSF_curve[315][1],PSF_curve[315][2]);
+//    printf("%g %g %g; %g %g %g; %g %g %g\n",PSF_curve[313 *  3  + 0],PSF_curve[313 *  3  + 1],PSF_curve[313 *  3  + 2]
+//                                           ,PSF_curve[314 *  3  + 0],PSF_curve[314 *  3  + 1],PSF_curve[314 *  3  + 2]
+//                                           ,PSF_curve[315 *  3  + 0],PSF_curve[315 *  3  + 1],PSF_curve[315 *  3  + 2]);
 /*
    Construct the xi and zeta tensors. They contain pixel references and contribution.
    values going from a given subpixel to other pixels (xi) and coming from other subpixels
@@ -1362,7 +1362,7 @@ static int cr2res_extract_xi_zeta_tensors(
      ix1=int(delta) and ix2=int(delta)+signum(delta) as (1-|delta-ix1|)*w and |delta-ix1|*w.
 
      The curvature is given by a quadratic polynomial evaluated from an approximation for column
-     x: delta = PSF_curve[x][0] + PSF_curve[x][1] * (y-yc[x]) + PSF_curve[x][2] * (y-yc[x])^2.
+     x: delta = PSF_curve[x *  3  + 0] + PSF_curve[x *  3  + 1] * (y-yc[x]) + PSF_curve[x *  3  + 2] * (y-yc[x])^2.
      It looks easy except that y and yc are set in the global detector coordinate system rather than
      in the shifted and cropped swath passed to slit_func_2d. One possible solution I will try here
      is to modify PSF_curve before the call such as:
@@ -1396,7 +1396,7 @@ static int cr2res_extract_xi_zeta_tensors(
         else if(iy==iy2) w=d2;
         else             w=step;
         dy+=step;
-        delta = (PSF_curve[x][1] + PSF_curve[x][2] * dy) * dy;
+        delta = (PSF_curve[x *  3  + 1] + PSF_curve[x *  3  + 2] * dy) * dy;
         ix1=delta;
         ix2=ix1+signum(delta);
 
@@ -1686,9 +1686,9 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
                                                     // the central line yc.
                      int osample,                   // Subpixel ovsersampling factor
                      double PSF_curve[ncols][3],    // Parabolic fit to the slit image curvature.
-                                                    // For column d_x = PSF_curve[ncols][0] +
-                                                    //                  PSF_curve[ncols][1] *d_y +
-                                                    //                  PSF_curve[ncols][2] *d_y^2,
+                                                    // For column d_x = PSF_curve[ncols *  3  + 0] +
+                                                    //                  PSF_curve[ncols *  3  + 1] *d_y +
+                                                    //                  PSF_curve[ncols *  3  + 2] *d_y^2,
                                                     // where d_y is the offset from the central line ycen.
                                                     // Thus central subpixel of omega[x][y'][delta_x][iy']
                                                     // does not stick out of column x.
