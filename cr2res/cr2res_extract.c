@@ -1712,14 +1712,19 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
                      double p_bj[ncols])            // ncols (RHS)
 */
 {
-  int x, xx, xxx, y, yy, iy, jy, n, m;
+  int x, xx, xxx, y, yy, iy, jy, n, m, nx, ny;
   double step, delta_x, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
   int info, iter, isum;
-//	FILE *datafile;
 
   delta_x=nx/2;           /* Maximum horizontal shift in detector pixels due to slit image curvature         */
   ny=osample*(nrows+1)+1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
   step=1.e0/osample;
+
+  double * l_Aij = cpl_malloc(ny * ny * sizeof(double));
+  double * l_bj = cpl_malloc(ny * sizeof(double));
+  double * p_Aij = cpl_malloc(ncols * ncols * sizeof(double));
+  double * p_bj = cpl_malloc(ncols * sizeof(double));
+  double * sP_old = cpl_malloc(ncols*sizeof(double)); // double sP_old[ncols];
 
 /* Loop through sL , sP reconstruction until convergence is reached */
   iter=0;
@@ -2065,6 +2070,12 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
   {
     unc[x]=sqrt(unc[x]/p_bj[x]*nrows);
   }
+
+  cpl_free(l_Aij);
+  cpl_free(l_bj);
+  cpl_free(p_Aij);
+  cpl_free(p_bj);
+  cpl_free(sP_old);
 
 	return 0;
 }
