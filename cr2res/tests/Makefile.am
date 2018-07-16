@@ -31,8 +31,8 @@ endif
 LIBCR2RES = $(top_builddir)/cr2res/libcr2res.la
 
 AM_CPPFLAGS = $(all_includes)
-AM_LDFLAGS = $(CPL_LDFLAGS)
-LDADD = $(LIBCR2RES) $(LIBCPLDFS) $(LIBCPLUI) $(LIBCPLDRS) $(LIBCPLCORE)
+AM_LDFLAGS = $(CPL_LDFLAGS) $(HDRL_LDFLAGS)
+LDADD = $(LIBCR2RES) $(LIBCPLDFS) $(LIBCPLUI) $(LIBCPLDRS) $(LIBCPLCORE) $(HDRL_LIBS)
 
 check_PROGRAMS = cr2res_trace-test \
                  cr2res_utils-test \
