@@ -178,20 +178,25 @@ static void test_cr2res_slitdec_vert(void)
     int swath = 400;
     int oversample = 2;
     int smooth_slit = 0.1;
+    int width = cpl_image_get_size_x(img_in);
 
     cpl_vector ** slit_func;
     cpl_vector ** spec;
     hdrl_image ** model;
 
-
-
     cr2res_extract_slitdec_vert(img_in, trace_table, order, trace, height, swath, oversample, smooth_slit, slit_func, spec, model);
 
     cpl_image_delete(img_in);
     cpl_table_delete(trace_table);
-    cpl_vector_delete(slit_func);
-    cpl_vector_delete(spec);
-    hdrl_image_delete(model);
+    
+    for(int i = 0; i < width/swath+2; i++)
+    {
+        cpl_vector_delete(slit_func[i]);
+        cpl_vector_delete(spec[i]);
+        hdrl_image_delete(model[i]);
+    }
+    
+
 
 }
 
