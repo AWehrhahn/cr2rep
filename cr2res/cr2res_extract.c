@@ -69,6 +69,37 @@ static int cr2res_extract_slit_func_vert(
          double      lambda_sL,
          double      sP_stop,
          int         maxiter) ;
+static int cr2res_extract_slit_func_curved(
+         int         ncols,
+         int         nrows,
+         int         osample,
+         double  *   im,
+         double  *   pix_unc,
+         int     *   mask,
+         double  *   ycen,
+         int     *   ycen_offset,
+         int         y_lower_lim,
+         xi_ref  *   xi,
+         zeta_ref *  zeta,
+         int     *   m_zeta,
+         double  *   sL,
+         double  *   sP,
+         double  *   model,
+         double  *   unc,
+         double      lambda_sP,
+         double      lambda_sL,
+         double      sP_stop,
+         int         maxiter);
+static int cr2res_extract_xi_zeta_tensors(
+                    int ncols,
+                    int nrows,
+                    double * ycen,
+                    int * ycen_offset,
+                    int y_lower_lim,
+
+
+                    int osample,
+                    double * PSF_curve);
 static int cr2res_extract_slitdec_bandsol(double *, double *, int, int) ;
 static int cr2res_extract_slitdec_adjust_swath(int sw, int nx);
 
@@ -629,10 +660,268 @@ int cr2res_extract_slitdec_vert(
     return 0;
 }
 
+/*----------------------------------------------------------------------------*/
+/**
+  @brief    Extract optimally (slit-decomposition) with polynomial slit
+  @param    img_in      full detector image
+  @param    trace_tab   The traces table
+  @param    order       The order to extract
+  @param    trace_id    The Trace to extract
+  @param    height      number of pix above and below mid-line or -1
+  @param    swath       width per swath
+  @param    oversample  factor for oversampling
+  @param    smooth_slit
+  @param    slit_func   the returned slit function
+  @param    spec        the returned spectrum
+  @param    model       the returned model
+  @return   0 if ok, -1 otherwise
+
+  This func takes a single image (contining many orders), and a *single*
+  order definition in the form of central y-corrds., plus the height.
+  Swath widht and oversampling are passed through.
+
+  The task of this function then is to
+
+    -cut out the relevant pixels of the order
+    -shift im in y integers, so that nrows becomes minimal,
+        adapt ycen accordingly
+    -loop over swaths, in half-steps
+    -derive a good starting guess for the spectrum, by median-filter
+        average along slit, beware of cosmics
+    -run cr2res_extract_slit_func_vert()
+    -merge overlapping swath results by linear weights from swath-width to edge.
+    -return re-assembled model image, slit-fu, spectrum, new mask.
+    -calculate the errors and return them. This is done by comparing the
+        variance of (im-model) to the poisson-statistics of the spectrum.
+
+ */
+/*----------------------------------------------------------------------------*/
+int cr2res_extract_slitdec_curved(
+        hdrl_image  *   img_hdrl,
+        cpl_table   *   trace_tab,
+        int             order,
+        int             trace_id,
+        int             height,
+        int             swath,
+        int             oversample,
+        double          smooth_slit,
+        cpl_vector  **  slit_func,
+        cpl_vector  **  spec,
+        hdrl_image  **  model)
+{
+    cpl_polynomial  **  traces ;
+    int             *   ycen_int;
+    double          *   ycen_rest;
+    double          *   ycen_sw;
+    double          *   img_sw_data;
+    double          *   spec_sw_data;
+    double          *   slitfu_sw_data;
+    double          *   model_sw;
+    int             *   mask_sw;
+    const cpl_image       *   img_in;
+    const cpl_image       *   err_in;
+    cpl_image       *   img_sw;
+    cpl_image       *   err_sw;
+    cpl_image       *   img_rect;
+    cpl_image       *   model_rect;
+    cpl_vector      *   ycen ;
+    cpl_image       *   img_tmp;
+    cpl_image       *   img_out;
+    cpl_vector      *   spec_sw;
+    cpl_vector      *   slitfu_sw;
+    cpl_vector      *   spc;
+    cpl_vector      *   slitfu;
+    cpl_vector      *   weights_sw;
+    cpl_vector      *   tmp_vec;
+    cpl_size            lenx, leny;
+    cpl_type            imtyp;
+    double              pixval, img_median;
+    int                 i, j, nswaths, halfswath, row, col, x, y, ny_os,
+                        sw_start, sw_end, badpix;
+
+    img_in = hdrl_image_get_image_const(img_hdrl);
+    err_in = hdrl_image_get_error_const(img_hdrl);
+
+    /* Check Entries */
+    if (img_in == NULL || trace_tab == NULL) return -1 ;
+
+    /* Compute height if not given */
+    if (height <= 0) {
+        height = cr2res_trace_get_height(trace_tab, order, trace_id);
+        if (height <= 0) {
+            cpl_msg_error(__func__, "Cannot compute height");
+            return -1;
+        }
+    }
+    /* Initialise */
+    imtyp = cpl_image_get_type(img_in);
+    lenx = cpl_image_get_size_x(img_in);
+    leny = cpl_image_get_size_y(img_in);
+    /* Get ycen */
+    if ((ycen = cr2res_trace_get_ycen(trace_tab, order,
+                    trace_id, lenx)) == NULL) {
+        cpl_msg_error(__func__, "Cannot get ycen");
+        return -1 ;
+    }
+
+    /* Number of rows after oversampling */
+    ny_os = oversample*(height+1) +1;
+    swath = cr2res_extract_slitdec_adjust_swath(swath, lenx);
+    halfswath = swath/2;
+    nswaths = (lenx / swath) *2; // *2 because we step in half swaths!
+    if (lenx%swath >= halfswath) nswaths +=1;
+
+    // Get cut-out rectified order
+    img_rect = cr2res_image_cut_rectify(img_in, ycen, height);
+    if (img_rect == NULL){
+        cpl_msg_error(__func__, "Cannot rectify order");
+        cpl_vector_delete(ycen);
+        return -1;
+    }
+    if (cpl_msg_get_level() == CPL_MSG_DEBUG) {
+        cpl_image_save(img_rect, "debug_rectorder.fits", imtyp,
+                NULL, CPL_IO_CREATE);
+    }
+    ycen_rest = cr2res_vector_get_rest(ycen);
+
+    /* Allocate */
+    mask_sw = cpl_malloc(height*swath*sizeof(int));
+    model_sw = cpl_malloc(height*swath*sizeof(double));
+    img_sw = cpl_image_new(swath, height, CPL_TYPE_DOUBLE);
+    err_sw = cpl_image_new(swath, height, CPL_TYPE_DOUBLE);
+    ycen_sw = cpl_malloc(swath*sizeof(double));
+
+    // Local versions of return data
+    slitfu = cpl_vector_new(ny_os);
+    spc = cpl_vector_new(lenx);
+    img_out = cpl_image_new(lenx, leny, CPL_TYPE_DOUBLE);
+    model_rect = cpl_image_new(lenx, height, CPL_TYPE_DOUBLE);
+
+    // Work vectors
+    slitfu_sw = cpl_vector_new(ny_os);
+    slitfu_sw_data = cpl_vector_get_data(slitfu_sw);
+    weights_sw = cpl_vector_new(swath);
+
+    /* Pre-calculate the weights for overlapping swaths*/
+    for (i=0;i<halfswath;i++) {
+         cpl_vector_set(weights_sw,i,i+1);
+         cpl_vector_set(weights_sw,swath-i-1,i+1);
+    }
+    cpl_vector_divide_scalar(weights_sw,i+1); // normalize such that max(w)=1
+
+
+    for (i=0;i<nswaths-1;i++){ // TODO: Treat last swath!
+        sw_start = i*halfswath;
+        sw_end = sw_start + swath;
+        for(col=1; col<=swath; col++){      // col is x-index in swath
+            x = i*halfswath + col;          // coords in large image
+            for(y=1;y<=height;y++){
+                pixval = cpl_image_get(img_rect, x, y, &badpix);
+                if(cpl_error_get_code() != CPL_ERROR_NONE)
+                    cpl_msg_error(__func__, "%d %d %s", x, y, cpl_error_get_where());
+                cpl_image_set(img_sw, col, y, pixval);
+                j = (y-1)*swath + (col-1) ; // raw index for mask, start with 0!
+                if (badpix ==0) mask_sw[j] = 1;
+                else mask_sw[j] = 0;
+            }
+        }
+
+        img_median = cpl_image_get_median(img_sw);
+        for (j=0;j<ny_os;j++) cpl_vector_set(slitfu_sw,j,img_median);
+        img_sw_data = cpl_image_get_data_double(img_sw);
+        img_tmp = cpl_image_collapse_median_create(img_sw, 0, 0, 0);
+        spec_sw = cpl_vector_new_from_image_row(img_tmp,1);
+        cpl_image_delete(img_tmp);
+        spec_sw_data = cpl_vector_get_data(spec_sw);
+        for (j=sw_start;j<sw_end;j++) ycen_sw[j-sw_start] = ycen_rest[j];
+
+        /* Finally ready to call the slit-decomp */
+        //cr2res_extract_slit_func_curved(swath, height, oversample, img_sw_data,
+        //        mask_sw, ycen_sw, slitfu_sw_data, spec_sw_data, model_sw,
+        //        0.0, smooth_slit, 1.0e-5, 20);
+
+        for(col=1; col<=swath; col++){      // col is x-index in cut-out
+            x = i*halfswath + col;          // coords in large image
+            for(y=1;y<=height;y++){
+                j = (y-1)*swath + (col-1) ; // raw index for mask, start with 0!
+                cpl_image_set(model_rect,x,y, model_sw[j]);
+            }
+        }
+
+        // add up slit-functions, divide by nswaths below to get average
+        if (i==0) cpl_vector_copy(slitfu,slitfu_sw);
+        else cpl_vector_add(slitfu,slitfu_sw);
+
+        if (cpl_msg_get_level() == CPL_MSG_DEBUG) {
+            cpl_vector_save(spec_sw, "debug_spc.fits", CPL_TYPE_DOUBLE, NULL,
+                    CPL_IO_CREATE);
+            tmp_vec = cpl_vector_wrap(swath, ycen_sw);
+            cpl_vector_save(tmp_vec, "debug_ycen.fits", CPL_TYPE_DOUBLE, NULL,
+                    CPL_IO_CREATE);
+            cpl_vector_unwrap(tmp_vec);
+            cpl_vector_save(slitfu_sw, "debug_slitfu.fits", CPL_TYPE_DOUBLE,
+                    NULL, CPL_IO_CREATE);
+            img_tmp = cpl_image_wrap_double(swath, height, model_sw);
+            cpl_image_save(img_tmp, "debug_model_sw.fits", CPL_TYPE_FLOAT,
+                    NULL, CPL_IO_CREATE);
+            cpl_image_unwrap(img_tmp);
+            cpl_image_save(img_sw, "debug_img_sw.fits", CPL_TYPE_FLOAT, NULL,
+                    CPL_IO_CREATE);
+        }
+        /* Multiply by weights and add to output array */
+        cpl_vector_multiply(spec_sw, weights_sw);
+        if (i==0){
+            for (j=0;j<halfswath;j++) {
+                cpl_vector_set(spec_sw, j,
+                    cpl_vector_get(spec_sw,j)/cpl_vector_get(weights_sw,j));
+            }
+        }
+        if (i==nswaths-1) {
+            for (j=halfswath;j<swath;j++) {
+                cpl_vector_set(spec_sw, j,
+                    cpl_vector_get(spec_sw,j)/cpl_vector_get(weights_sw,j));
+            }
+        }
+        for (j=sw_start;j<sw_end;j++) {
+            cpl_vector_set(spc, j,
+                cpl_vector_get(spec_sw,j-sw_start) + cpl_vector_get(spc, j) );
+        }        cpl_vector_delete(spec_sw);
+    } // End loop over swaths
+    cpl_vector_delete(slitfu_sw);
+    cpl_vector_delete(weights_sw);
+
+    // insert model_rect into large frame
+    cr2res_image_insert_rect(model_rect, ycen, img_out);
+
+    // divide by nswaths to make the slitfu into the average over all swaths.
+    cpl_vector_divide_scalar(slitfu,nswaths);
+
+    // TODO: Update BPM in img_out
+    // TODO: Calculate error and return it.
+
+    // TODO: Deallocate return arrays in case of error, return -1
+    cpl_image_delete(img_rect);
+    cpl_image_delete(model_rect);
+    cpl_image_delete(img_sw);
+    cpl_free(mask_sw) ;
+    cpl_free(model_sw) ;
+    cpl_vector_delete(ycen);
+    cpl_free(ycen_rest);
+    cpl_free(ycen_sw);
+
+    *slit_func = slitfu;
+    *spec = spc;
+    *model = hdrl_image_create(img_out, NULL);
+    cpl_image_delete(img_out);
+
+    return 0;
+}
+
+
 
 /*----------------------------------------------------------------------------*/
 /**
-  @brief
+  @brief    Slit-decomposition of a single swath, assuming vertical slit
   @param    ncols       Swath width in pixels
   @param    nrows       Extraction slit height in pixels
   @param    osample     Subpixel ovsersampling factor
@@ -891,314 +1180,70 @@ static int cr2res_extract_slit_func_vert(
     return 0;
 }
 
+
+
+
 /*----------------------------------------------------------------------------*/
 /**
-  @brief   Main curved slit decomposition wrapper with swath loop
-  @param    img_in      full detector image
-  @param    trace_tab   The traces table
-  @param    order       The order to extract
-  @param    trace_id    The Trace to extract
-  @param    height      number of pix above and below mid-line or -1
-  @param    swath       width per swath
-  @param    oversample  factor for oversampling
-  @param    smooth_slit
-  @param    slit_func   the returned slit function
-  @param    spec        the returned spectrum
-  @param    model       the returned model
-  @return   0 if ok, -1 otherwise
-
-  This func takes a single image (contining many orders), and a *single*
-  order definition in the form of central y-corrds., plus the height.
-  Swath widht and oversampling are passed through.
-
-  The task of this function then is to
-
-    -cut out the relevant pixels of the order
-    -shift im in y integers, so that nrows becomes minimal,
-        adapt ycen accordingly
-    -loop over swaths, in half-steps
-    -derive a good starting guess for the spectrum, by median-filter
-        average along slit, beware of cosmics
-    -run cr2res_extract_slit_func_vert()
-    -merge overlapping swath results by linear weights from swath-width to edge.
-    -return re-assembled model image, slit-fu, spectrum, new mask.
-    -calculate the errors and return them. This is done by comparing the
-        variance of (im-model) to the poisson-statistics of the spectrum.
-
+  @brief    Helper function for cr2res_extract_slit_func_curved
+  @param
+  @return
  */
 /*----------------------------------------------------------------------------*/
-int cr2res_extract_slitdec_curved(
-        hdrl_image  *   img_hdrl,
-        cpl_table   *   trace_tab,
-        int             order,
-        int             trace_id,
-        int             height,
-        int             swath,
-        int             oversample,
-        double          smooth_slit,
-        cpl_vector  **  slit_func,
-        cpl_vector  **  spec,
-        hdrl_image  **  model)
-{
-    cpl_polynomial  **  traces ;
-    int             *   ycen_int;
-    double          *   ycen_rest;
-    double          *   ycen_sw;
-    double          *   img_sw_data;
-    double          *   spec_sw_data;
-    double          *   slitfu_sw_data;
-    double          *   model_sw;
-    int             *   mask_sw;
-    const cpl_image       *   img_in;
-    const cpl_image       *   err_in;
-    cpl_image       *   img_sw;
-    cpl_image       *   err_sw;
-    cpl_image       *   img_rect;
-    cpl_image       *   model_rect;
-    cpl_vector      *   ycen ;
-    cpl_image       *   img_tmp;
-    cpl_image       *   img_out;
-    cpl_vector      *   spec_sw;
-    cpl_vector      *   slitfu_sw;
-    cpl_vector      *   spc;
-    cpl_vector      *   slitfu;
-    cpl_vector      *   weights_sw;
-    cpl_vector      *   tmp_vec;
-    cpl_size            lenx, leny;
-    cpl_type            imtyp;
-    double              pixval, img_median;
-    int                 i, j, nswaths, halfswath, row, col, x, y, ny_os,
-                        sw_start, sw_end, badpix;
 
-    img_in = hdrl_image_get_image_const(img_hdrl);
-    err_in = hdrl_image_get_error_const(img_hdrl);
-
-    /* Check Entries */
-    if (img_in == NULL || trace_tab == NULL) return -1 ;
-
-    /* Compute height if not given */
-    if (height <= 0) {
-        height = cr2res_trace_get_height(trace_tab, order, trace_id);
-        if (height <= 0) {
-            cpl_msg_error(__func__, "Cannot compute height");
-            return -1;
-        }
-    }
-    /* Initialise */
-    imtyp = cpl_image_get_type(img_in);
-    lenx = cpl_image_get_size_x(img_in);
-    leny = cpl_image_get_size_y(img_in);
-    /* Get ycen */
-    if ((ycen = cr2res_trace_get_ycen(trace_tab, order,
-                    trace_id, lenx)) == NULL) {
-        cpl_msg_error(__func__, "Cannot get ycen");
-        return -1 ;
-    }
-
-    /* Number of rows after oversampling */
-    ny_os = oversample*(height+1) +1;
-    swath = cr2res_extract_slitdec_adjust_swath(swath, lenx);
-    halfswath = swath/2;
-    nswaths = (lenx / swath) *2; // *2 because we step in half swaths!
-    if (lenx%swath >= halfswath) nswaths +=1;
-
-    // Get cut-out rectified order
-    img_rect = cr2res_image_cut_rectify(img_in, ycen, height);
-    if (img_rect == NULL){
-        cpl_msg_error(__func__, "Cannot rectify order");
-        cpl_vector_delete(ycen);
-        return -1;
-    }
-    if (cpl_msg_get_level() == CPL_MSG_DEBUG) {
-        cpl_image_save(img_rect, "debug_rectorder.fits", imtyp,
-                NULL, CPL_IO_CREATE);
-    }
-    ycen_rest = cr2res_vector_get_rest(ycen);
-
-    /* Allocate */
-    mask_sw = cpl_malloc(height*swath*sizeof(int));
-    model_sw = cpl_malloc(height*swath*sizeof(double));
-    img_sw = cpl_image_new(swath, height, CPL_TYPE_DOUBLE);
-    err_sw = cpl_image_new(swath, height, CPL_TYPE_DOUBLE);
-    ycen_sw = cpl_malloc(swath*sizeof(double));
-
-    // Local versions of return data
-    slitfu = cpl_vector_new(ny_os);
-    spc = cpl_vector_new(lenx);
-    img_out = cpl_image_new(lenx, leny, CPL_TYPE_DOUBLE);
-    model_rect = cpl_image_new(lenx, height, CPL_TYPE_DOUBLE);
-
-    // Work vectors
-    slitfu_sw = cpl_vector_new(ny_os);
-    slitfu_sw_data = cpl_vector_get_data(slitfu_sw);
-    weights_sw = cpl_vector_new(swath);
-
-    /* Pre-calculate the weights for overlapping swaths*/
-    for (i=0;i<halfswath;i++) {
-         cpl_vector_set(weights_sw,i,i+1);
-         cpl_vector_set(weights_sw,swath-i-1,i+1);
-    }
-    cpl_vector_divide_scalar(weights_sw,i+1); // normalize such that max(w)=1
-
-
-    for (i=0;i<nswaths-1;i++){ // TODO: Treat last swath!
-        sw_start = i*halfswath;
-        sw_end = sw_start + swath;
-        for(col=1; col<=swath; col++){      // col is x-index in swath
-            x = i*halfswath + col;          // coords in large image
-            for(y=1;y<=height;y++){
-                pixval = cpl_image_get(img_rect, x, y, &badpix);
-                if(cpl_error_get_code() != CPL_ERROR_NONE)
-                    cpl_msg_error(__func__, "%d %d %s", x, y, cpl_error_get_where());
-                cpl_image_set(img_sw, col, y, pixval);
-                j = (y-1)*swath + (col-1) ; // raw index for mask, start with 0!
-                if (badpix ==0) mask_sw[j] = 1;
-                else mask_sw[j] = 0;
-            }
-        }
-
-        img_median = cpl_image_get_median(img_sw);
-        for (j=0;j<ny_os;j++) cpl_vector_set(slitfu_sw,j,img_median);
-        img_sw_data = cpl_image_get_data_double(img_sw);
-        img_tmp = cpl_image_collapse_median_create(img_sw, 0, 0, 0);
-        spec_sw = cpl_vector_new_from_image_row(img_tmp,1);
-        cpl_image_delete(img_tmp);
-        spec_sw_data = cpl_vector_get_data(spec_sw);
-        for (j=sw_start;j<sw_end;j++) ycen_sw[j-sw_start] = ycen_rest[j];
-
-        /* Finally ready to call the slit-decomp */
-        cr2res_extract_slit_func_curved(swath, height, oversample, img_sw_data,
-                mask_sw, ycen_sw, slitfu_sw_data, spec_sw_data, model_sw,
-                0.0, smooth_slit, 1.0e-5, 20);
-
-        for(col=1; col<=swath; col++){      // col is x-index in cut-out
-            x = i*halfswath + col;          // coords in large image
-            for(y=1;y<=height;y++){
-                j = (y-1)*swath + (col-1) ; // raw index for mask, start with 0!
-                cpl_image_set(model_rect,x,y, model_sw[j]);
-            }
-        }
-
-        // add up slit-functions, divide by nswaths below to get average
-        if (i==0) cpl_vector_copy(slitfu,slitfu_sw);
-        else cpl_vector_add(slitfu,slitfu_sw);
-
-        if (cpl_msg_get_level() == CPL_MSG_DEBUG) {
-            cpl_vector_save(spec_sw, "debug_spc.fits", CPL_TYPE_DOUBLE, NULL,
-                    CPL_IO_CREATE);
-            tmp_vec = cpl_vector_wrap(swath, ycen_sw);
-            cpl_vector_save(tmp_vec, "debug_ycen.fits", CPL_TYPE_DOUBLE, NULL,
-                    CPL_IO_CREATE);
-            cpl_vector_unwrap(tmp_vec);
-            cpl_vector_save(slitfu_sw, "debug_slitfu.fits", CPL_TYPE_DOUBLE,
-                    NULL, CPL_IO_CREATE);
-            img_tmp = cpl_image_wrap_double(swath, height, model_sw);
-            cpl_image_save(img_tmp, "debug_model_sw.fits", CPL_TYPE_FLOAT,
-                    NULL, CPL_IO_CREATE);
-            cpl_image_unwrap(img_tmp);
-            cpl_image_save(img_sw, "debug_img_sw.fits", CPL_TYPE_FLOAT, NULL,
-                    CPL_IO_CREATE);
-        }
-        /* Multiply by weights and add to output array */
-        cpl_vector_multiply(spec_sw, weights_sw);
-        if (i==0){
-            for (j=0;j<halfswath;j++) {
-                cpl_vector_set(spec_sw, j,
-                    cpl_vector_get(spec_sw,j)/cpl_vector_get(weights_sw,j));
-            }
-        }
-        if (i==nswaths-1) {
-            for (j=halfswath;j<swath;j++) {
-                cpl_vector_set(spec_sw, j,
-                    cpl_vector_get(spec_sw,j)/cpl_vector_get(weights_sw,j));
-            }
-        }
-        for (j=sw_start;j<sw_end;j++) {
-            cpl_vector_set(spc, j,
-                cpl_vector_get(spec_sw,j-sw_start) + cpl_vector_get(spc, j) );
-        }        cpl_vector_delete(spec_sw);
-    } // End loop over swaths
-    cpl_vector_delete(slitfu_sw);
-    cpl_vector_delete(weights_sw);
-
-    // insert model_rect into large frame
-    cr2res_image_insert_rect(model_rect, ycen, img_out);
-
-    // divide by nswaths to make the slitfu into the average over all swaths.
-    cpl_vector_divide_scalar(slitfu,nswaths);
-
-    // TODO: Update BPM in img_out
-    // TODO: Calculate error and return it.
-
-    // TODO: Deallocate return arrays in case of error, return -1
-    cpl_image_delete(img_rect);
-    cpl_image_delete(model_rect);
-    cpl_image_delete(img_sw);
-    cpl_free(mask_sw) ;
-    cpl_free(model_sw) ;
-    cpl_vector_delete(ycen);
-    cpl_free(ycen_rest);
-    cpl_free(ycen_sw);
-
-    *slit_func = slitfu;
-    *spec = spc;
-    *model = hdrl_image_create(img_out, NULL);
-    cpl_image_delete(img_out);
-
-    return 0;
-}
-
-
-int cr2res_extract_xi_zeta_tensors(int ncols,      /* Swath width in pixels                                 */
+static int cr2res_extract_xi_zeta_tensors(
+                    int ncols,      /* Swath width in pixels                                 */
                     int nrows,                     /* Extraction slit height in pixels                      */
-                    int ny,                        /* Size of the slit function array: ny=osample(nrows+1)+1*/
-                    double ycen[ncols],            /* Order centre line offset from pixel row boundary      */
-                    int ycen_offset[ncols],        /* Order image column shift                              */
+                    double * ycen,            /* Order centre line offset from pixel row boundary      */
+                    int * ycen_offset,        /* Order image column shift                              */
                     int y_lower_lim,               /* Number of detector pixels below the pixel containing  */
                                                    /* the central line yc.                                  */
+                                                   /* ycen_offset[0]=0, absolute ycen=y_lower_lim+ycen_offset+ycen */
                     int osample,                   /* Subpixel ovsersampling factor                         */
-                    double PSF_curve[ncols][3],    /* Parabolic fit to the slit image curvature.            */
-                                                   /* For column d_x = PSF_curve[ncols[0] +                */
+                    double * PSF_curve    /* Parabolic fit to the slit image curvature.            */
+                                                   /* For column d_x = PSF_curve[ncols][0] +                */
                                                    /*                  PSF_curve[ncols][1] *d_y +           */
                                                    /*                  PSF_curve[ncols][2] *d_y^2,          */
                                                    /* where d_y is the offset from the central line ycen.   */
                                                    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
                                                    /* does not stick out of column x.                       */
-                    xi_ref xi[ncols][ny][4],       /* Convolution tensor telling the coordinates of detector*/
-                                                   /* pixels on which {x, iy} element falls and the         */
-                                                   /* corresponding projections.                            */
-                    zeta_ref zeta[ncols][nrows][3*(osample+1)],/* Convolution tensor telling the coordinates*/
-                                                   /* of subpixels {x, iy} contributing to detector pixel   */
-                                                   /* {x, y}.                                               */
-                    int m_zeta[ncols][nrows])      /* The actual number of controbuting elements in zeta    */
+)
 {
-  int x, xx, y, yy, ix, ix1, ix2, iy, jy, iy1, iy2;
-  double step, d1, d2, delta, dy, w, sum;
+  int x, xx, y, yy, ix, ix1, ix2, iy, iy1, iy2, ny;
+  double step, delta, dy, w, d1, d2;
+  xi_ref * xi;
+  zeta_ref * zeta;
+  int * m_zeta;
 
+  ny=osample*(nrows+1)+1; /* The size of the sf array */
+
+  /* Allocate working matrices */
+  xi = cpl_malloc(ncols*ny*4*sizeof(xi_ref)); //xi_ref xi[ncols][ny][4],
+                /* Convolution tensor telling the coordinates of detector*/
+                /* pixels on which {x, iy} element falls and the         */
+                /* corresponding projections.                            */
+  zeta = cpl_malloc(ncols*nrows*3*(osample+1)*sizeof(zeta_ref)); // zeta_ref zeta[ncols][nrows][3*(osample+1)],
+
+                /* Convolution tensor telling the coordinates*/
+                /* of subpixels {x, iy} contributing to detector pixel   */
+                /* {x, y}.                                               */
+  m_zeta = cpl_malloc(ncols*nrows*sizeof(int)); //int m_zeta[ncols][nrows])
+                    /* The actual number of controbuting elements in zeta    */
   step=1.e0/osample;
 
-  for(x=0; x<ncols; x++) /* Clean xi   */
+  for(x=0; x<ncols*ny*4; x++) /* Clean xi   */
   {
-    for(iy=0; iy<ny; iy++)
-    {
-      xi[x][iy][0].x=xi[x][iy][1].x=xi[x][iy][2].x=xi[x][iy][3].x=0;
-      xi[x][iy][0].y=xi[x][iy][1].y=xi[x][iy][2].y=xi[x][iy][3].y=0;
-      xi[x][iy][0].w=xi[x][iy][1].w=xi[x][iy][2].w=xi[x][iy][3].w=0.;
-    }
+      xi[x].x=xi[x].y=xi[x].w=0;
   }
 
-  for(x=0; x<ncols; x++) /* Clean zeta */
+  for(x=0; x<ncols*nrows*3*(osample+1); x++) /* Clean zeta */
   {
-    for(y=0; y<nrows; y++)
-    {
-      m_zeta[x][y]=0;
-      for(ix=0; ix<3*(osample+1); ix++)
-      {
-        zeta[x][y][ix].x =0;
-        zeta[x][y][ix].iy=0;
-        zeta[x][y][ix].w =0.;
-      }
-    }
+    zeta[x].x =0;
+    zeta[x].iy=0;
+    zeta[x].w =0.;
+  }
+  for(x=0; x<ncols*nrows; x++)
+    m_zeta[x] = 0;
   }
 //    printf("%g %g %g; %g %g %g; %g %g %g\n",PSF_curve[313][0],PSF_curve[313][1],PSF_curve[313][2]
 //                                           ,PSF_curve[314][0],PSF_curve[314][1],PSF_curve[314][2]
@@ -1289,6 +1334,7 @@ int cr2res_extract_xi_zeta_tensors(int ncols,      /* Swath width in pixels     
    other hand, subpixels around ycen by definition must contribute to pixel x,y.
    3rd index in xi refers corners of pixel xx,y: 0:LL, 1:LR, 2:UL, 3:UR.
 */
+
     for(y=0; y<nrows; y++)
     {
       iy1+=osample;  // Bottom subpixel falling in row y
@@ -1546,47 +1592,80 @@ int cr2res_extract_xi_zeta_tensors(int ncols,      /* Swath width in pixels     
   return 0;
 }
 
-int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels                                 */
-                     int nrows,                     /* Extraction slit height in pixels                      */
-                     int nx,                        /* Range of columns affected by PSF tilt: nx=2*delta_x+1 */
-                     int ny,                        /* Size of the slit function array: ny=osample(nrows+1)+1*/
-                     double im[nrows][ncols],       /* Image to be decomposed                                */
-                     byte mask[nrows][ncols],       /* Initial and final mask for the swath                  */
-                     double ycen[ncols],            /* Order centre line offset from pixel row boundary      */
-                     int ycen_offset[ncols],        /* Order image column shift                              */
-                     int y_lower_lim,               /* Number of detector pixels below the pixel containing  */
-                                                    /* the central line yc.                                  */
-                     int osample,                   /* Subpixel ovsersampling factor                         */
-                     double PSF_curve[ncols][3],    /* Parabolic fit to the slit image curvature.            */
-                                                    /* For column d_x = PSF_curve[ncols][0] +                */
-                                                    /*                  PSF_curve[ncols][1] *d_y +           */
-                                                    /*                  PSF_curve[ncols][2] *d_y^2,          */
-                                                    /* where d_y is the offset from the central line ycen.   */
-                                                    /* Thus central subpixel of omega[x][y'][delta_x][iy']   */
-                                                    /* does not stick out of column x.                       */
-                     double lambda_sP,              /* Smoothing parameter for the spectrum, coiuld be zero  */
-                     double lambda_sL,              /* Smoothing parameter for the slit function, usually >0 */
-                     double sP[ncols],              /* Spectrum resulting from decomposition                 */
-                     double sL[ny],                 /* Slit function resulting from decomposition            */
-                     double model[nrows][ncols],    /* Model constructed from sp and sf                      */
-                     xi_ref xi[ncols][ny][4],       /* Convolution tensor telling the coordinates of detector*/
-                                                    /* pixels on which {x, iy} element falls and the         */
-                                                    /* corresponding projections.                            */
-                     zeta_ref zeta[ncols][nrows][3*(osample+1)],/* Convolution tensor telling the coordinates*/
-                                                    /* of subpixels {x, iy} contributing to detector pixel   */
-                                                    /* {x, y}.                                               */
-                     int m_zeta[ncols][nrows],      /* The actual number of controbuting elements in zeta    */
-                     double sP_old[ncols],          /* Work array to control the convergence                 */
-                     double l_Aij[],                /* Various LAPACK arrays (ny*ny)                         */
-                     double l_bj[ny],               /* ny                                                    */
-                     double p_Aij[],                /* Various LAPACK arrays (ncols*ncols)                   */
-                     double p_bj[ncols])            /* ncols (RHS)                                           */
+
+/*----------------------------------------------------------------------------*/
+/**
+  @brief    Slit decomposition of single swath with slit tilt & curvature
+  @param
+  @return
+ */
+/*----------------------------------------------------------------------------*/
+static int cr2res_extract_slit_func_curved(
+         int         ncols,
+         int         nrows,
+         int         osample,
+         double  *   im,
+         double  *   pix_unc,
+         int     *   mask,
+         double  *   ycen,
+         int     *   ycen_offset,
+         int         y_lower_lim,
+         xi_ref  *   xi,
+         zeta_ref *  zeta,
+         int     *   m_zeta,
+         double  *   sL,
+         double  *   sP,
+         double  *   model,
+         double  *   unc,
+         double      lambda_sP,
+         double      lambda_sL,
+         double      sP_stop,
+         int         maxiter)
+
+/* ORIGINAL DECLARATION
+static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pixels
+                     int nrows,                     // Extraction slit height in pixels
+                     int nx,                        // Range of columns affected by PSF tilt: nx=2*delta_x+1
+                     int ny,                        // Size of the slit function array: ny=osample(nrows+1)+1
+                     double im[nrows][ncols],       // Image to be decomposed
+                     double pix_unc[nrows][ncols],  // Individual pixel uncertainties. Set to zero if unknown
+                     byte mask[nrows][ncols],       // Initial and final mask for the swath
+                     double ycen[ncols],            // Order centre line offset from pixel row boundary
+                     int ycen_offset[ncols],        // Order image column shift
+                     int y_lower_lim,               // Number of detector pixels below the pixel containing
+                                                    // the central line yc.
+                     int osample,                   // Subpixel ovsersampling factor
+                     double PSF_curve[ncols][3],    // Parabolic fit to the slit image curvature.
+                                                    // For column d_x = PSF_curve[ncols][0] +
+                                                    //                  PSF_curve[ncols][1] *d_y +
+                                                    //                  PSF_curve[ncols][2] *d_y^2,
+                                                    // where d_y is the offset from the central line ycen.
+                                                    // Thus central subpixel of omega[x][y'][delta_x][iy']
+                                                    // does not stick out of column x.
+                     double lambda_sP,              // Smoothing parameter for the spectrum, coiuld be zero
+                     double lambda_sL,              // Smoothing parameter for the slit function, usually >0
+                     double sP[ncols],              // Spectrum resulting from decomposition
+                     double sL[ny],                 // Slit function resulting from decomposition
+                     double model[nrows][ncols],    // Model constructed from sp and sf
+                     double unc[ncols],             // Spectrum uncertainties based on data - model
+                     xi_ref xi[ncols][ny][4],       // Convolution tensor telling the coordinates of detector
+                                                    // pixels on which {x, iy} element falls and the
+                                                    // corresponding projections.
+                     zeta_ref zeta[ncols][nrows][3*(osample+1)],// Convolution tensor telling the coordinates
+                                                    // of subpixels {x, iy} contributing to detector pixel
+                                                    // {x, y}.
+                     int m_zeta[ncols][nrows],      // The actual number of controbuting elements in zeta
+                     double sP_old[ncols],          // Work array to control the convergence
+                     double l_Aij[],                // Various LAPACK arrays (ny*ny)
+                     double l_bj[ny],               // ny
+                     double p_Aij[],                // Various LAPACK arrays (ncols*ncols)
+                     double p_bj[ncols])            // ncols (RHS)
+*/
 {
-  int x, xx, xxx, y, yy, yyy, iy, jy, n, m;
-  double step, d1, d2, delta, delta_x, dy, sum, norm, dev, lambda, diag_tot, w, ww, www, sP_change, sP_max;
+  int x, xx, xxx, y, yy, iy, jy, n, m;
+  double step, delta_x, sum, norm, dev, lambda, diag_tot, ww, www, sP_change, sP_max;
   int info, iter, isum;
-  double value;
-    FILE *datafile;
+//	FILE *datafile;
 
   delta_x=nx/2;           /* Maximum horizontal shift in detector pixels due to slit image curvature         */
   ny=osample*(nrows+1)+1; /* The size of the sL array. Extra osample is because ycen can be between 0 and 1. */
@@ -1610,7 +1689,7 @@ int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels    
     }
 
 /* Fill in SLE arrays for slit function */
-    diag_tot=0.e0;
+   	diag_tot=0.e0;
 
     for(iy=0; iy<ny; iy++)
     {
@@ -1854,8 +1933,8 @@ int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels    
       }
     }
 
-    for(y=0; y<nrows; y++)
-    {
+  	for(y=0; y<nrows; y++)
+  	{
       for(x=0; x<ncols; x++)
       {
         for(m=0; m<m_zeta[x][y]; m++)
@@ -1867,7 +1946,6 @@ int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels    
         }
       }
     }
-//return 32;
 
 /* Compare model and data */
 
@@ -1875,11 +1953,11 @@ int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels    
     isum=0;
     for(y=0; y<nrows; y++)
     {
-        for(x=delta_x; x<ncols-delta_x; x++)
-        {
+     	for(x=delta_x; x<ncols-delta_x; x++)
+     	{
         sum+=mask[y][x]*(model[y][x]-im[y][x])*(model[y][x]-im[y][x]);
         isum+=mask[y][x];
-        }
+     	}
     }
     dev=sqrt(sum/isum);
 
@@ -1887,12 +1965,12 @@ int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels    
 
     for(y=0; y<nrows; y++)
     {
-        for(x=delta_x; x<ncols-delta_x; x++)
-        {
+     	for(x=delta_x; x<ncols-delta_x; x++)
+     	{
         if(fabs(model[y][x]-im[y][x])>6.*dev) mask[y][x]=0; else mask[y][x]=1;
-        }
+     	}
     }
-    printf("iter=%d, dev=%g\n", iter, dev);
+    //printf("iter=%d, dev=%g\n", iter, dev);
 
 /* Compute the change in the spectrum */
 
@@ -1904,11 +1982,41 @@ int cr2res_extract_slit_func_curved(int ncols,      /* Swath width in pixels    
       if(fabs(sP[x]-sP_old[x])>sP_change) sP_change=fabs(sP[x]-sP_old[x]);
     }
 
-/* Check the convergence */
+/* Check for convergence */
 
-  } while(iter++<5 && sP_change>1.e-5*sP_max);
+  } while(iter++ < maxiter && sP_change > sP_stop*sP_max);
 
-    return 0;
+/* Uncertainty estimate */
+
+  for(x=0; x<ncols; x++)
+  {
+    unc[x]=0.;
+    p_bj[x]=0.;
+  }
+
+  for(y=0; y<nrows; y++)
+  {
+    for(x=0; x<ncols; x++)
+    {
+      for(m=0; m<m_zeta[x][y]; m++) // Loop through all pixels contributing to x,y
+      {
+        xx=zeta[x][y][m].x;
+        iy=zeta[x][y][m].iy;
+        ww=zeta[x][y][m].w;
+        unc[xx]+=(im[y][x]-model[y][x])*(im[y][x]-model[y][x])*
+                  ww*mask[y][x];
+        unc[xx]+=pix_unc[y][x]*pix_unc[y][x]*ww*mask[y][x];
+        p_bj[xx]+=ww*mask[y][x];   // Norm
+      }
+    }
+  }
+
+  for(x=0; x<ncols; x++)
+  {
+    unc[x]=sqrt(unc[x]/p_bj[x]*nrows);
+  }
+
+	return 0;
 }
 
 
