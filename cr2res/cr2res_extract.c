@@ -1410,26 +1410,26 @@ static int cr2res_extract_xi_zeta_tensors(
             {
               xx=x+ix1;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[1 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].w=w-fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[1 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][1].x=xx;
+              xi[x][iy][1].y=yy;
+              xi[x][iy][1].w=w-fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][1].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[1 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][1].w;
                 m_zeta[xx][yy]++;
               }
               xx=x+ix2;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[0 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].w=fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[0 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][0].x=xx;
+              xi[x][iy][0].y=yy;
+              xi[x][iy][0].w=fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][0].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[0 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][0].w;
                 m_zeta[xx][yy]++;
               }
             }
@@ -1440,26 +1440,26 @@ static int cr2res_extract_xi_zeta_tensors(
             {
               xx=x+ix2;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[1 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].w=fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[1 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][1].x=xx;
+              xi[x][iy][1].y=yy;
+              xi[x][iy][1].w=fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][1].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[1 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][1].w;
                 m_zeta[xx][yy]++;
               }
               xx=x+ix1;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[0 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].w=w-fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[0 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][0].x=xx;
+              xi[x][iy][0].y=yy;
+              xi[x][iy][0].w=w-fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][0].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[0 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][0].w;
                 m_zeta[xx][yy]++;
               }
             }
@@ -1468,9 +1468,9 @@ static int cr2res_extract_xi_zeta_tensors(
           {
             xx=x+ix1;
             yy=y+ycen_offset[x]-ycen_offset[xx];
-            xi[0 * (ncols+nrows) +  x * ncols + iy].x=xx;
-            xi[0 * (ncols+nrows) +  x * ncols + iy].y=yy;
-            xi[0 * (ncols+nrows) +  x * ncols + iy].w=w;
+            xi[x][iy][0].x=xx;
+            xi[x][iy][0].y=yy;
+            xi[x][iy][0].w=w;
             if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && w>0)
             {
               zeta[xx][yy][m_zeta[xx][yy]].x =x;
@@ -1488,26 +1488,26 @@ static int cr2res_extract_xi_zeta_tensors(
             {
               xx=x+ix1;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[3 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[3 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[3 * (ncols+nrows) +  x * ncols + iy].w=w-fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[3 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][3].x=xx;
+              xi[x][iy][3].y=yy;
+              xi[x][iy][3].w=w-fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][3].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[3 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][3].w;
                 m_zeta[xx][yy]++;
               }
               xx=x+ix2;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[2 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[2 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[2 * (ncols+nrows) +  x * ncols + iy].w=fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[2 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][2].x=xx;
+              xi[x][iy][2].y=yy;
+              xi[x][iy][2].w=fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][2].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[2 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][2].w;
                 m_zeta[xx][yy]++;
               }
             }
@@ -1518,26 +1518,26 @@ static int cr2res_extract_xi_zeta_tensors(
             {
               xx=x+ix2;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[3 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[3 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[3 * (ncols+nrows) +  x * ncols + iy].w=fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[3 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][3].x=xx;
+              xi[x][iy][3].y=yy;
+              xi[x][iy][3].w=fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][3].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[3 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][3].w;
                 m_zeta[xx][yy]++;
               }
               xx=x+ix1;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[2 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[2 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[2 * (ncols+nrows) +  x * ncols + iy].w=w-fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[2 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][2].x=xx;
+              xi[x][iy][2].y=yy;
+              xi[x][iy][2].w=w-fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][2].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[2 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][2].w;
                 m_zeta[xx][yy]++;
               }
             }
@@ -1546,9 +1546,9 @@ static int cr2res_extract_xi_zeta_tensors(
           {
             xx=x+ix1;
             yy=y+ycen_offset[x]-ycen_offset[xx];
-            xi[2 * (ncols+nrows) +  x * ncols + iy].x=xx;
-            xi[2 * (ncols+nrows) +  x * ncols + iy].y=yy;
-            xi[2 * (ncols+nrows) +  x * ncols + iy].w=w;
+            xi[x][iy][2].x=xx;
+            xi[x][iy][2].y=yy;
+            xi[x][iy][2].w=w;
             if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && w>0)
             {
               zeta[xx][yy][m_zeta[xx][yy]].x =x;
@@ -1566,26 +1566,26 @@ static int cr2res_extract_xi_zeta_tensors(
             {
               xx=x+ix1;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[1 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].w=w-fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[1 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][1].x=xx;
+              xi[x][iy][1].y=yy;
+              xi[x][iy][1].w=w-fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][1].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[1 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][1].w;
                 m_zeta[xx][yy]++;
               }
               xx=x+ix2;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[0 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].w=fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[0 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][0].x=xx;
+              xi[x][iy][0].y=yy;
+              xi[x][iy][0].w=fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][0].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[0 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][0].w;
                 m_zeta[xx][yy]++;
               }
             }
@@ -1596,26 +1596,26 @@ static int cr2res_extract_xi_zeta_tensors(
             {
               xx=x+ix2;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[1 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[1 * (ncols+nrows) +  x * ncols + iy].w=fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[1 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][1].x=xx;
+              xi[x][iy][1].y=yy;
+              xi[x][iy][1].w=fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][1].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[1 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][1].w;
                 m_zeta[xx][yy]++;
               }
               xx=x+ix1;
               yy=y+ycen_offset[x]-ycen_offset[xx];
-              xi[0 * (ncols+nrows) +  x * ncols + iy].x=xx;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].y=yy;
-              xi[0 * (ncols+nrows) +  x * ncols + iy].w=w-fabs(delta-ix1)*w;
-              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[0 * (ncols+nrows) +  x * ncols + iy].w>0)
+              xi[x][iy][0].x=xx;
+              xi[x][iy][0].y=yy;
+              xi[x][iy][0].w=w-fabs(delta-ix1)*w;
+              if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && xi[x][iy][0].w>0)
               {
                 zeta[xx][yy][m_zeta[xx][yy]].x =x;
                 zeta[xx][yy][m_zeta[xx][yy]].iy=iy;
-                zeta[xx][yy][m_zeta[xx][yy]].w=xi[0 * (ncols+nrows) +  x * ncols + iy].w;
+                zeta[xx][yy][m_zeta[xx][yy]].w=xi[x][iy][0].w;
                 m_zeta[xx][yy]++;
               }
             }
@@ -1624,9 +1624,9 @@ static int cr2res_extract_xi_zeta_tensors(
           {
             xx=x+ix2;
             yy=y+ycen_offset[x]-ycen_offset[xx];
-            xi[0 * (ncols+nrows) +  x * ncols + iy].x=xx;
-            xi[0 * (ncols+nrows) +  x * ncols + iy].y=yy;
-            xi[0 * (ncols+nrows) +  x * ncols + iy].w=w;
+            xi[x][iy][0].x=xx;
+            xi[x][iy][0].y=yy;
+            xi[x][iy][0].w=w;
             if(xx>=0 && xx<ncols && yy>=0 && yy<nrows && w>0)
             {
               zeta[xx][yy][m_zeta[xx][yy]].x =x;
@@ -1677,9 +1677,9 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
                      int nrows,                     // Extraction slit height in pixels
                      int nx,                        // Range of columns affected by PSF tilt: nx=2*delta_x+1
                      int ny,                        // Size of the slit function array: ny=osample(nrows+1)+1
-                     double im[nrows * ncols + ncols],       // Image to be decomposed
+                     double im[nrows][ncols],       // Image to be decomposed
                      double pix_unc[nrows][ncols],  // Individual pixel uncertainties. Set to zero if unknown
-                     byte mask[nrows * ncols + ncols],       // Initial and final mask for the swath
+                     byte mask[nrows][ncols],       // Initial and final mask for the swath
                      double ycen[ncols],            // Order centre line offset from pixel row boundary
                      int ycen_offset[ncols],        // Order image column shift
                      int y_lower_lim,               // Number of detector pixels below the pixel containing
@@ -1696,7 +1696,7 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
                      double lambda_sL,              // Smoothing parameter for the slit function, usually >0
                      double sP[ncols],              // Spectrum resulting from decomposition
                      double sL[ny],                 // Slit function resulting from decomposition
-                     double model[nrows * ncols + ncols],    // Model constructed from sp and sf
+                     double model[nrows][ncols],    // Model constructed from sp and sf
                      double unc[ncols],             // Spectrum uncertainties based on data - model
                      xi_ref xi[ncols][ny][4],       // Convolution tensor telling the coordinates of detector
                                                     // pixels on which {x, iy} element falls and the
@@ -1746,75 +1746,75 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
       for(x=0; x<ncols; x++)
       {
         n=0;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy][xx];
             }
-            l_bj[iy]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sP[x]*ww;
+            l_bj[iy]+=im[yy][xx]*mask[yy][xx]*sP[x]*ww;
           }
         }
         n=1;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy][xx];
             }
-            l_bj[iy]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sP[x]*ww;
+            l_bj[iy]+=im[yy][xx]*mask[yy][xx]*sP[x]*ww;
           }
         }
         n=2;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy][xx];
             }
-            l_bj[iy]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sP[x]*ww;
+            l_bj[iy]+=im[yy][xx]*mask[yy][xx]*sP[x]*ww;
           }
         }
         n=3;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              l_Aij[iy+ny*(jy-iy+2*osample)]+=sP[xxx]*sP[x]*www*ww*mask[yy][xx];
             }
-            l_bj[iy]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sP[x]*ww;
+            l_bj[iy]+=im[yy][xx]*mask[yy][xx]*sP[x]*ww;
           }
         }
       }
@@ -1868,75 +1868,75 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
       for(iy=0; iy<ny; iy++)
       {
         n=0;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy][xx];
             }
-            p_bj[x]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sL[iy]*ww;
+            p_bj[x]+=im[yy][xx]*mask[yy][xx]*sL[iy]*ww;
           }
         }
         n=1;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy][xx];
             }
-            p_bj[x]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sL[iy]*ww;
+            p_bj[x]+=im[yy][xx]*mask[yy][xx]*sL[iy]*ww;
           }
         }
         n=2;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy][xx];
             }
-            p_bj[x]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sL[iy]*ww;
+            p_bj[x]+=im[yy][xx]*mask[yy][xx]*sL[iy]*ww;
           }
         }
         n=3;
-        ww=xi[n * (ncols+nrows) +  x * ncols + iy].w;
+        ww=xi[x][iy][n].w;
         if(ww>0)
         {
-          xx=xi[n * (ncols+nrows) +  x * ncols + iy].x;
-          yy=xi[n * (ncols+nrows) +  x * ncols + iy].y;
+          xx=xi[x][iy][n].x;
+          yy=xi[x][iy][n].y;
           if(m_zeta[xx][yy]>0 && xx>=0 && xx<ncols && yy>=0 && yy<nrows)
           {
             for(m=0; m<m_zeta[xx][yy]; m++)
             {
-              xxx=zeta[m * (ncols+nrows) +  xx * ncols + yy].x;
-              jy =zeta[m * (ncols+nrows) +  xx * ncols + yy].iy;
-              www=zeta[m * (ncols+nrows) +  xx * ncols + yy].w;
-              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy * ncols + xx];
+              xxx=zeta[xx][yy][m].x;
+              jy =zeta[xx][yy][m].iy;
+              www=zeta[xx][yy][m].w;
+              p_Aij[x+ncols*(xxx-x+2)]+=sL[jy]*sL[iy]*www*ww*mask[yy][xx];
             }
-            p_bj[x]+=im[yy * ncols + xx]*mask[yy * ncols + xx]*sL[iy]*ww;
+            p_bj[x]+=im[yy][xx]*mask[yy][xx]*sL[iy]*ww;
           }
         }
       }
@@ -1979,7 +1979,7 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
     {
       for(x=0; x<ncols; x++)
       {
-        model[y * ncols + x]=0.;
+        model[y][x]=0.;
       }
     }
 
@@ -1989,10 +1989,10 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
       {
         for(m=0; m<m_zeta[x][y]; m++)
         {
-          xx=zeta[m * (ncols+nrows) +  x * ncols + y].x;
-          iy=zeta[m * (ncols+nrows) +  x * ncols + y].iy;
-          ww=zeta[m * (ncols+nrows) +  x * ncols + y].w;
-          model[y * ncols + x]+=sP[xx]*sL[iy]*ww;
+          xx=zeta[x][y][m].x;
+          iy=zeta[x][y][m].iy;
+          ww=zeta[x][y][m].w;
+          model[y][x]+=sP[xx]*sL[iy]*ww;
         }
       }
     }
@@ -2005,8 +2005,8 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
     {
      	for(x=delta_x; x<ncols-delta_x; x++)
      	{
-        sum+=mask[y * ncols + x]*(model[y * ncols + x]-im[y * ncols + x])*(model[y * ncols + x]-im[y * ncols + x]);
-        isum+=mask[y * ncols + x];
+        sum+=mask[y][x]*(model[y][x]-im[y][x])*(model[y][x]-im[y][x]);
+        isum+=mask[y][x];
      	}
     }
     dev=sqrt(sum/isum);
@@ -2017,7 +2017,7 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
     {
      	for(x=delta_x; x<ncols-delta_x; x++)
      	{
-        if(fabs(model[y * ncols + x]-im[y * ncols + x])>6.*dev) mask[y * ncols + x]=0; else mask[y * ncols + x]=1;
+        if(fabs(model[y][x]-im[y][x])>6.*dev) mask[y][x]=0; else mask[y][x]=1;
      	}
     }
     //printf("iter=%d, dev=%g\n", iter, dev);
@@ -2050,13 +2050,13 @@ static int cr2res_extract_slit_func_curved(int ncols,      // Swath width in pix
     {
       for(m=0; m<m_zeta[x][y]; m++) // Loop through all pixels contributing to x,y
       {
-        xx=zeta[m * (ncols+nrows) +  x * ncols + y].x;
-        iy=zeta[m * (ncols+nrows) +  x * ncols + y].iy;
-        ww=zeta[m * (ncols+nrows) +  x * ncols + y].w;
-        unc[xx]+=(im[y * ncols + x]-model[y * ncols + x])*(im[y * ncols + x]-model[y * ncols + x])*
-                  ww*mask[y * ncols + x];
-        unc[xx]+=pix_unc[y * ncols + x]*pix_unc[y * ncols + x]*ww*mask[y * ncols + x];
-        p_bj[xx]+=ww*mask[y * ncols + x];   // Norm
+        xx=zeta[x][y][m].x;
+        iy=zeta[x][y][m].iy;
+        ww=zeta[x][y][m].w;
+        unc[xx]+=(im[y][x]-model[y][x])*(im[y][x]-model[y][x])*
+                  ww*mask[y][x];
+        unc[xx]+=pix_unc[y][x]*pix_unc[y][x]*ww*mask[y][x];
+        p_bj[xx]+=ww*mask[y][x];   // Norm
       }
     }
   }
