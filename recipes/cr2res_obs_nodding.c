@@ -871,7 +871,7 @@ static int cr2res_obs_nodding_reduce(
     qc_signal_b = cr2res_qc_obs_nodding_signal(extracted_b) ;
     qc_transm = cr2res_qc_obs_nodding_transmission(NULL) ;
     qc_fwhm_a = cr2res_qc_obs_nodding_slit_psf(slit_func_a);
-    qc_fwhm_a = cr2res_qc_obs_nodding_slit_psf(slit_func_a);
+    qc_fwhm_b = cr2res_qc_obs_nodding_slit_psf(slit_func_b);
 
     /* Store the QC parameters in the plist */
     cpl_propertylist_append_double(plist, CR2RES_HEADER_QC_SIGNAL, 
