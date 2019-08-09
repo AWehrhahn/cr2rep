@@ -119,6 +119,8 @@ int cr2res_extract2d_trace(
         const cpl_table     *   trace_tab,
         int                     order,
         int                     trace_id,
+        const cpl_image     *   wavemap,
+        const cpl_image     *   slitmap,
         cpl_bivector        **  spectrum,
         cpl_bivector        **  position,
         cpl_vector          **  wavelength,
