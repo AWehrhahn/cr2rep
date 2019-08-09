@@ -1479,7 +1479,7 @@ int cr2res_extract2d_traces(
     int                     nb_traces, i, order, trace_id ;
 
     /* Check Entries */
-    if (img == NULL || traces == NULL) return -1 ;
+    if (img == NULL || traces == NULL | extracted == NULL) return -1 ;
 
     /* Initialise */
     nb_traces = cpl_table_get_nrow(traces) ;
@@ -1493,7 +1493,15 @@ int cr2res_extract2d_traces(
     // Calculate wavelength and slitfunction map once
     wavemap = cpl_image_new(CR2RES_DETECTOR_SIZE, CR2RES_DETECTOR_SIZE, CPL_TYPE_DOUBLE);
     slitmap = cpl_image_new(CR2RES_DETECTOR_SIZE, CR2RES_DETECTOR_SIZE, CPL_TYPE_DOUBLE);
-    cr2res_slit_pos_image(traces, &slitmap, &wavemap);
+    if (cr2res_slit_pos_image(traces, &slitmap, &wavemap) != 0)
+    {
+        cpl_msg_error(__func__, "Could not create wavelength / slit_fraction image");
+        cpl_free(spectrum);
+        cpl_free(position);
+        cpl_free(wavelength);
+        cpl_free(slit_fraction);
+        return -1;
+    }
 
     /* Loop over the traces and extract them */
     for (i=0 ; i<nb_traces ; i++) {
@@ -1618,7 +1626,6 @@ int cr2res_extract2d_trace(
     }
 
     // Step 0: Initialise output arrays
-
     npix_max = CR2RES_DETECTOR_SIZE * CR2RES_DETECTOR_SIZE;
     wavelength_local = cpl_vector_new(npix_max);
     slit_fraction_local = cpl_vector_new(npix_max);
@@ -1662,10 +1669,8 @@ int cr2res_extract2d_trace(
             // Set Slitfraction
             cpl_vector_set(slit_fraction_local, row, cpl_image_get(
                 slitmap, i + 1, j, &bad_pix));
-
         }
     }
-    
 
     // Step 3: resize output
     cpl_vector_set_size(position_x, row);
