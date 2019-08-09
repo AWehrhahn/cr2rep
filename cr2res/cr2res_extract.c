@@ -1476,13 +1476,14 @@ int cr2res_extract2d_traces(
     cpl_table           *   extract_loc ;
     cpl_image           *   wavemap;
     cpl_image           *   slitmap;
-    int                     nb_traces, i, order, trace_id ;
+    int                     nb_traces, i, order, trace_id, npoints ;
 
     /* Check Entries */
-    if (img == NULL || traces == NULL | extracted == NULL) return -1 ;
+    if (img == NULL || traces == NULL) return -1 ;
 
     /* Initialise */
     nb_traces = cpl_table_get_nrow(traces) ;
+    npoints = CR2RES_DETECTOR_SIZE * CR2RES_DETECTOR_SIZE / nb_traces;
 
     /* Allocate Data containers */
     spectrum = cpl_malloc(nb_traces * sizeof(cpl_bivector *)) ;
@@ -1526,7 +1527,7 @@ int cr2res_extract2d_traces(
 
         /* Call the Extraction */
         if (cr2res_extract2d_trace(img, traces, order, trace_id,
-                    wavemap, slitmap, 
+                    npoints, wavemap, slitmap, 
                     &(spectrum[i]), &(position[i]), &(wavelength[i]),
                     &(slit_fraction[i])) != 0) {
             cpl_msg_error(__func__, "Cannot extract2d the trace") ;
@@ -1571,13 +1572,13 @@ int cr2res_extract2d_traces(
   @param    trace_tab       The traces table
   @param    order           The order to extract
   @param    trace_id        The Trace to extract
+  @param    wavemap         Map of the wavelength for each pixel
+  @param    slitmap         Map of the slit fraction for each pixel
   @param    spectrum        [out] the spectrum and error
   @param    position        [out] the x/y positions
   @param    wavelength      [out] the wavelength values
   @param    slit_fraction   [out] the slit_fraction values
   @return   0 if ok, -1 otherwise
-
-  TODO
 
   Return the position, value, wavelength, and slitfraction of each pixel inside a trace
 
@@ -1588,6 +1589,7 @@ int cr2res_extract2d_trace(
         const cpl_table     *   trace_tab,
         int                     order,
         int                     trace_id,
+        int                     npoints,
         const cpl_image     *   wavemap,
         const cpl_image     *   slitmap,
         cpl_bivector        **  spectrum,
@@ -1614,6 +1616,7 @@ int cr2res_extract2d_trace(
     int k, bad_pix;
     cpl_size npix_max;
     cpl_size i, j, row;
+    double flux, err;
 
     /* Check Entries */
     if (in==NULL || trace_tab==NULL || spectrum==NULL || position==NULL
@@ -1627,12 +1630,12 @@ int cr2res_extract2d_trace(
 
     // Step 0: Initialise output arrays
     npix_max = CR2RES_DETECTOR_SIZE * CR2RES_DETECTOR_SIZE;
-    wavelength_local = cpl_vector_new(npix_max);
-    slit_fraction_local = cpl_vector_new(npix_max);
-    position_x = cpl_vector_new(npix_max);
-    position_y = cpl_vector_new(npix_max);
-    spectrum_flux = cpl_vector_new(npix_max);
-    spectrum_error = cpl_vector_new(npix_max);    
+    wavelength_local = cpl_vector_new(npoints);
+    slit_fraction_local = cpl_vector_new(npoints);
+    position_x = cpl_vector_new(npoints);
+    position_y = cpl_vector_new(npoints);
+    spectrum_flux = cpl_vector_new(npoints);
+    spectrum_error = cpl_vector_new(npoints);
 
     // Step 1: Figure out pixels in the current trace
     // i.e. everything between upper and lower in trace_wave
@@ -1658,10 +1661,10 @@ int cr2res_extract2d_trace(
             row++;
             cpl_vector_set(position_x, row, i +1);
             cpl_vector_set(position_y, row, j);
-            cpl_vector_set(spectrum_flux, row, cpl_image_get(
-                hdrl_image_get_image_const(in), i + 1, j, &bad_pix));
-            cpl_vector_set(spectrum_flux, row, cpl_image_get(
-                hdrl_image_get_error_const(in), i + 1, j, &bad_pix));
+            flux = cpl_image_get(hdrl_image_get_image_const(in), i + 1, j, &bad_pix);
+            err = cpl_image_get(hdrl_image_get_error_const(in), i + 1, j, &bad_pix);
+            cpl_vector_set(spectrum_flux, row, flux);
+            cpl_vector_set(spectrum_error, row, err);
 
             // Set wavelength
             cpl_vector_set(wavelength_local, row, cpl_image_get(
@@ -1673,12 +1676,12 @@ int cr2res_extract2d_trace(
     }
 
     // Step 3: resize output
-    cpl_vector_set_size(position_x, row);
-    cpl_vector_set_size(position_y, row);
-    cpl_vector_set_size(spectrum_flux, row);
-    cpl_vector_set_size(spectrum_error, row);
-    cpl_vector_set_size(wavelength_local, row);
-    cpl_vector_set_size(slit_fraction_local, row);
+    // cpl_vector_set_size(position_x, row);
+    // cpl_vector_set_size(position_y, row);
+    // cpl_vector_set_size(spectrum_flux, row);
+    // cpl_vector_set_size(spectrum_error, row);
+    // cpl_vector_set_size(wavelength_local, row);
+    // cpl_vector_set_size(slit_fraction_local, row);
 
     position_local = cpl_bivector_wrap_vectors(position_x, position_y);
     spectrum_local = cpl_bivector_wrap_vectors(spectrum_flux, spectrum_error);
