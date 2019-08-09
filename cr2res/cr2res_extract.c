@@ -1676,12 +1676,14 @@ int cr2res_extract2d_trace(
     }
 
     // Step 3: resize output
-    // cpl_vector_set_size(position_x, row);
-    // cpl_vector_set_size(position_y, row);
-    // cpl_vector_set_size(spectrum_flux, row);
-    // cpl_vector_set_size(spectrum_error, row);
-    // cpl_vector_set_size(wavelength_local, row);
-    // cpl_vector_set_size(slit_fraction_local, row);
+    for (i = row; i < npoints; i++){
+        cpl_vector_set(position_x, i, NAN);
+        cpl_vector_set(position_y, i, NAN);
+        cpl_vector_set(spectrum_flux, i, NAN);
+        cpl_vector_set(spectrum_error, i, NAN);
+        cpl_vector_set(wavelength_local, i, NAN);
+        cpl_vector_set(slit_fraction_local, i, NAN);
+    }
 
     position_local = cpl_bivector_wrap_vectors(position_x, position_y);
     spectrum_local = cpl_bivector_wrap_vectors(spectrum_flux, spectrum_error);
