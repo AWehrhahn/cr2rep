@@ -43,6 +43,10 @@
                                    Defines
  -----------------------------------------------------------------------------*/
 
+// The maximum difference to the neighbouring pixels to be considered a bad pixel
+// For the fitting of the gaussian line centers
+#define MAX_DEVIATION_FOR_BAD_PIXEL 300
+
 /*-----------------------------------------------------------------------------
                                 Functions prototypes
  -----------------------------------------------------------------------------*/
@@ -1567,13 +1571,14 @@ static int cr2res_wave_extract_lines(
         for (j = 1; j < window_size-1; j++){
             diff = 2 * cpl_vector_get(y, j) - cpl_vector_get(y, j-1) - cpl_vector_get(y, j+1);
             diff = fabs(diff);
-            if (diff > 300){
+            if (diff > MAX_DEVIATION_FOR_BAD_PIXEL){
                 value = (cpl_vector_get(y, j-1) + cpl_vector_get(y, j+1)) / 2.;
                 cpl_vector_set(y, j, value);
             }
         }
-        cpl_vector_set(y, 0, 0);
-        cpl_vector_set(y, window_size-1, 0);
+        // Pixels at the edge shouldn't matter anyway(?)
+        cpl_vector_set(y, 0, cpl_vector_get(y, 1));
+        cpl_vector_set(y, window_size-1, cpl_vector_get(y, window_size-2));
 
 
         // get initial guess for gaussian fit
