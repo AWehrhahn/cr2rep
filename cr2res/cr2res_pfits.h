@@ -28,26 +28,55 @@
 #include "cr2res_nodding.h"
 #include "cr2res_utils.h"
 
-// define header property names
-#define CR2RES_HEADER_INSTRUMENT "INSTRUME"
-#define CR2RES_HEADER_EXTNAME "EXTNAME"
-#define CR2RES_HEADER_NAXIS1 "NAXIS1"
-#define CR2RES_HEADER_NAXIS2 "NAXIS2"
-#define CR2RES_HEADER_EXPNO "ESO TPL EXPNO"
-#define CR2RES_HEADER_DECKER_POS "ESO INS OPTI8 NO"
-#define CR2RES_HEADER_NODPOS "ESO SEQ NODPOS"
-#define CR2RES_HEADER_NODTHROW "ESO SEQ NODTHROW"
-#define CR2RES_HEADER_ARCFILE "ARCFILE"
-#define CR2RES_HEADER_WLEN_ID "ESO INS WLEN ID"
-#define CR2RES_HEADER_WLEN_BEGIN "ESO INS WLEN BEGIN%d"
-#define CR2RES_HEADER_WLEN_END "ESO INS WLEN END%d"
-#define CR2RES_HEADER_WLEN_CENY "ESO INS WLEN CENY%d"
-#define CR2RES_HEADER_NDIT "ESO DET NDIT"
-#define CR2RES_HEADER_DIT "ESO DET SEQ1 DIT"
-#define CR2RES_HEADER_QC_SIGNAL "ESO QC SIGNAL"
-#define CR2RES_HEADER_QC_TRANSM "ESO QC TRANSM"
-#define CR2RES_HEADER_QC_SLITFWHM "ESO QC SLITFWHM"
+/*-----------------------------------------------------------------------------
+                                Define
+ -----------------------------------------------------------------------------*/
 
+/* RAW files header Keywords Names */
+#define CR2RES_HEADER_INSTRUMENT        "INSTRUME"
+#define CR2RES_HEADER_EXTNAME           "EXTNAME"
+#define CR2RES_HEADER_NAXIS1            "NAXIS1"
+#define CR2RES_HEADER_NAXIS2            "NAXIS2"
+#define CR2RES_HEADER_EXPNO             "ESO TPL EXPNO"
+#define CR2RES_HEADER_DECKER_POS        "ESO INS OPTI8 NO"
+#define CR2RES_HEADER_NODPOS            "ESO SEQ NODPOS"
+#define CR2RES_HEADER_NODTHROW          "ESO SEQ NODTHROW"
+#define CR2RES_HEADER_ARCFILE           "ARCFILE"
+#define CR2RES_HEADER_WLEN_ID           "ESO INS WLEN ID"
+#define CR2RES_HEADER_WLEN_BEGIN        "ESO INS WLEN BEGIN%d"
+#define CR2RES_HEADER_WLEN_END          "ESO INS WLEN END%d"
+#define CR2RES_HEADER_WLEN_CENY         "ESO INS WLEN CENY%d"
+#define CR2RES_HEADER_LAMP4_NAME        "ESO INS1 LAMP4 NAME"
+#define CR2RES_HEADER_LAMP8_NAME        "ESO INS1 LAMP8 NAME"
+#define CR2RES_HEADER_NDIT              "ESO DET NDIT"
+#define CR2RES_HEADER_DIT               "ESO DET SEQ1 DIT"
+
+/* QC Parameter Names */
+#define CR2RES_HEADER_QC_DARK_RON1          "ESO QC DARK RON1"
+#define CR2RES_HEADER_QC_DARK_RON2          "ESO QC DARK RON2"
+#define CR2RES_HEADER_QC_DARK_MEAN          "ESO QC DARK MEAN"
+#define CR2RES_HEADER_QC_DARK_MEDIAN        "ESO QC DARK MEDIAN"
+#define CR2RES_HEADER_QC_DARK_STDEV         "ESO QC DARK STDDEV"
+#define CR2RES_HEADER_QC_DARK_NBAD          "ESO QC DARK NBAD"
+#define CR2RES_HEADER_QC_DETLIN_NBAD        "ESO QC DETLIN NBBAD"
+#define CR2RES_HEADER_QC_DETLIN_NBFAILED    "ESO QC DETLIN NBFAILED"
+#define CR2RES_HEADER_QC_DETLIN_NBSUCCESS   "ESO QC DETLIN NBSUCCESS"
+#define CR2RES_HEADER_QC_DETLIN_FITQUALITY  "ESO QC DETLIN FITQUALITY"
+#define CR2RES_HEADER_QC_DETLIN_MEDIAN      "ESO QC DETLIN MEDIAN"
+#define CR2RES_HEADER_QC_DETLIN_GAIN        "ESO QC DETLIN GAIN"
+#define CR2RES_HEADER_QC_DETLIN_MINLEVEL    "ESO QC DETLIN MINLEVEL"
+#define CR2RES_HEADER_QC_DETLIN_MAXLEVEL    "ESO QC DETLIN MAXLEVEL"
+#define CR2RES_HEADER_QC_FLAT_LAMP_INTS     "ESO QC FLAT LAMP INTS"
+#define CR2RES_HEADER_QC_FLAT_MEAN_LEVEL    "ESO QC FLAT MEAN LEVEL "
+#define CR2RES_HEADER_QC_FLAT_MEAN_FLUX     "ESO QC FLAT MEAN FLUX "
+#define CR2RES_HEADER_QC_FLAT_MEDIAN_FLUX   "ESO QC FLAT MEDIAN FLUX"
+#define CR2RES_HEADER_QC_FLAT_MED_SNR       "ESO QC FLAT MED SNR"
+#define CR2RES_HEADER_QC_FLAT_OVEREXPOSED   "ESO QC FLAT OVEREXPOSED"
+#define CR2RES_HEADER_QC_FLAT_TRACE_CENTERY "ESO QC FLAT TRACE CENTERY"
+#define CR2RES_HEADER_QC_FLAT_NBBAD         "ESO QC FLAT NBBAD"
+#define CR2RES_HEADER_QC_SIGNAL             "ESO QC SIGNAL"
+#define CR2RES_HEADER_QC_TRANSM             "ESO QC TRANSM"
+#define CR2RES_HEADER_QC_SLITFWHM           "ESO QC SLITFWHM"
 
 /*-----------------------------------------------------------------------------
                                    Functions prototypes
@@ -59,6 +88,8 @@ const char * cr2res_pfits_get_procatg(const cpl_propertylist *) ;
 const char * cr2res_pfits_get_protype(const cpl_propertylist *) ;
 const char * cr2res_pfits_get_wlen_id(const cpl_propertylist *) ;
 const char * cr2res_pfits_get_arcfile(const cpl_propertylist *) ;
+const char * cr2res_pfits_get_lamp4(const cpl_propertylist *) ;
+const char * cr2res_pfits_get_lamp8(const cpl_propertylist *) ;
 
 double cr2res_pfits_get_nodthrow(const cpl_propertylist *) ;
 double cr2res_pfits_get_dit(const cpl_propertylist *) ;

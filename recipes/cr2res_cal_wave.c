@@ -102,11 +102,12 @@ Spectrum Extraction and Wavelength Calibration                          \n\
   This recipe performs the extraction of the various orders along       \n\
   the provided traces, and the wavelength calibration of these          \n\
   extracted spectra.                                                    \n\
-  It can support 4 different methods (--wl_method parameter):           \n\
+  It can support different methods (--wl_method parameter):             \n\
     XCORR:  Cross Correlation with a emission lines catalog (default)   \n\
     LINE1D: Line identification and fitting for each 1D spectra         \n\
     LINE2D: Line identification and fitting for all 1D spectra at once  \n\
-    ETALON: Does not require any static calibration file.               \n\
+    ETALON: Does not require any static calibration filer               \n\
+    AUTO:   Guess the Method from the input file header                 \n\
                                                                         \n\
   Inputs                                                                \n\
     raw.fits " CR2RES_WAVE_RAW " [1 to n]                               \n\
@@ -122,12 +123,14 @@ Spectrum Extraction and Wavelength Calibration                          \n\
           or " CR2RES_CAL_DETLIN_BPM_PROCATG "                          \n\
           or " CR2RES_UTIL_BPM_SPLIT_PROCATG "                          \n\
     master_dark.fits " CR2RES_CAL_DARK_MASTER_PROCATG " [0 to 1]        \n\
-    master_flat.fits " CR2RES_CAL_FLAT_MASTER_PROCATG " [0 to 1]   \n\
+    master_flat.fits " CR2RES_CAL_FLAT_MASTER_PROCATG " [0 to 1]        \n\
     lines.fits " CR2RES_EMISSION_LINES_PROCATG " [0 to 1]               \n\
                                                                         \n\
   Outputs                                                               \n\
     cr2res_cal_wave_tw.fits " CR2RES_CAL_WAVE_TW_PROCATG"               \n\
-    cr2res_cal_wave_map.fits " CR2RES_CAL_WAVE_MAP_PROCATG"             \n\
+    cr2res_cal_wave_wave_map.fits " CR2RES_CAL_WAVE_MAP_PROCATG"        \n\
+    cr2res_cal_wave_lines_diagnostics.fits "
+    CR2RES_CAL_WAVE_LINES_DIAGNOSTICS_PROCATG"\n\
                                                                         \n\
   Algorithm                                                             \n\
     loop on detectors d:                                                \n\
@@ -136,6 +139,7 @@ Spectrum Extraction and Wavelength Calibration                          \n\
         -> lines_diagnostics(d)                                         \n\
         -> out_wave_map(d)                                              \n\
     Save out_trace_wave                                                 \n\
+    Save lines_diagnostics                                              \n\
     Save out_wave_map                                                   \n\
                                                                         \n\
     cr2res_cal_wave_reduce():                                           \n\
@@ -177,6 +181,7 @@ Spectrum Extraction and Wavelength Calibration                          \n\
     cr2res_wave_gen_wave_map()                                          \n\
     cr2res_io_save_TRACE_WAVE()                                         \n\
     cr2res_io_save_WAVE_MAP()                                           \n\
+    cr2res_io_save_LINES_DIAGNOSTICS()                                  \n\
 " ;
 
 /*-----------------------------------------------------------------------------
@@ -273,20 +278,20 @@ static int cr2res_cal_wave_create(cpl_plugin * plugin)
 
     p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.ext_oversample",
             CPL_TYPE_INT, "factor by which to oversample the extraction",
-            "cr2res.cr2res_cal_wave", 5);
+            "cr2res.cr2res_cal_wave", 3);
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "ext_oversample");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
     p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.ext_swath_width",
-            CPL_TYPE_INT, "The swath width", "cr2res.cr2res_cal_wave", 32);
+            CPL_TYPE_INT, "The swath width", "cr2res.cr2res_cal_wave", 90);
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "ext_swath_width");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
     p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.ext_height",
             CPL_TYPE_INT, "Extraction height",
-            "cr2res.cr2res_cal_wave", -1);
+            "cr2res.cr2res_cal_wave", 15);
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "ext_height");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
@@ -300,8 +305,9 @@ static int cr2res_cal_wave_create(cpl_plugin * plugin)
     cpl_parameterlist_append(recipe->parameters, p);
 
     p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.wl_method",
-            CPL_TYPE_STRING, "Data Type (XCORR / LINE1D / LINE2D / ETALON)",
-            "cr2res.cr2res_cal_wave", "XCORR");
+            CPL_TYPE_STRING, 
+            "Wavelength Method (AUTO / XCORR / LINE1D / LINE2D / ETALON)",
+            "cr2res.cr2res_cal_wave", "AUTO");
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "wl_method");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
@@ -435,7 +441,6 @@ static int cr2res_cal_wave(
     setlocale(LC_NUMERIC, "C");
 
     /* Initialise */
-    wavecal_type = CR2RES_UNSPECIFIED ;
     wl_start = wl_end = wl_err_start = wl_err_end = -1.0 ;
     wl_shift = 0.0 ;
 
@@ -468,6 +473,7 @@ static int cr2res_cal_wave(
     else if (!strcmp(sval, "LINE1D"))   wavecal_type = CR2RES_LINE1D ;
     else if (!strcmp(sval, "LINE2D"))   wavecal_type = CR2RES_LINE2D ;
     else if (!strcmp(sval, "ETALON"))   wavecal_type = CR2RES_ETALON ;
+    else if (!strcmp(sval, "AUTO"))     wavecal_type = CR2RES_UNSPECIFIED ;
     else {
         cpl_msg_error(__func__, "Invalid Data Type specified");
         cpl_error_set(__func__, CPL_ERROR_ILLEGAL_INPUT) ;
@@ -502,11 +508,6 @@ static int cr2res_cal_wave(
     display = cpl_parameter_get_bool(param) ;
 
     /* Check Parameters */
-    if (reduce_order > -1 && wavecal_type == CR2RES_LINE2D) {
-        cpl_msg_error(__func__, "Limiting to one order with LINE2D impossible");
-        cpl_error_set(__func__, CPL_ERROR_ILLEGAL_INPUT) ;
-        return -1 ;
-    }
     if (wl_degree < 0) {
         cpl_msg_error(__func__, "The degree needs to be >= 0");
         cpl_error_set(__func__, CPL_ERROR_ILLEGAL_INPUT) ;
@@ -543,6 +544,27 @@ static int cr2res_cal_wave(
         return -1 ;
     }
 
+    /* Guess the method to be used from the RAW frames header */
+    if (wavecal_type == CR2RES_UNSPECIFIED) {
+        if ((wavecal_type = cr2res_wave_guess_method(
+                        cpl_frameset_get_position(rawframes, 0))) == 
+                CR2RES_UNSPECIFIED) {
+            cpl_frameset_delete(rawframes) ;
+            cpl_msg_error(__func__, "Cannot guess the method") ;
+            cpl_error_set(__func__, CPL_ERROR_ILLEGAL_INPUT) ;
+            return -1 ;
+        }
+        char * method_str = cr2res_wave_method_print(wavecal_type) ;
+        cpl_msg_info(__func__, "Method Automatically Guessed : %s",
+                method_str) ;
+        cpl_free(method_str) ;
+    }
+    if (reduce_order > -1 && wavecal_type == CR2RES_LINE2D) {
+        cpl_msg_error(__func__, "Limiting to one order with LINE2D impossible");
+        cpl_error_set(__func__, CPL_ERROR_ILLEGAL_INPUT) ;
+        return -1 ;
+    }
+
     /* Loop over the detectors */
     for (det_nr=1 ; det_nr<=CR2RES_NB_DETECTORS ; det_nr++) {
 
@@ -576,18 +598,26 @@ static int cr2res_cal_wave(
     }
 
     /* Ѕave Products */
-    /* TODO : Save Lines Diagnostics */
     out_file = cpl_sprintf("%s_tw.fits", RECIPE_STRING) ;
     cr2res_io_save_TRACE_WAVE(out_file, frameset, rawframes, parlist, 
             out_trace_wave, NULL, ext_plist, 
             CR2RES_CAL_WAVE_TW_PROCATG, RECIPE_STRING) ;
     cpl_free(out_file);
 
-    out_file = cpl_sprintf("%s_map.fits", RECIPE_STRING) ;
+    out_file = cpl_sprintf("%s_wave_map.fits", RECIPE_STRING) ;
     cr2res_io_save_WAVE_MAP(out_file, frameset, rawframes, parlist, 
             out_wave_map, NULL, ext_plist, 
             CR2RES_CAL_WAVE_MAP_PROCATG, RECIPE_STRING) ;
     cpl_free(out_file);
+
+	if (wavecal_type == CR2RES_LINE2D || wavecal_type == CR2RES_LINE1D) {
+		/* Save the Lines Diagnostics */
+		out_file = cpl_sprintf("%s_lines_diagnostics.fits", RECIPE_STRING);
+		cr2res_io_save_LINES_DIAGNOSTICS(out_file, frameset, rawframes, parlist,
+                lines_diagnostics, NULL, ext_plist,
+				CR2RES_CAL_WAVE_LINES_DIAGNOSTICS_PROCATG, RECIPE_STRING) ;
+		cpl_free(out_file);
+	}
 
     /* Free and return */
     cpl_frameset_delete(rawframes) ;

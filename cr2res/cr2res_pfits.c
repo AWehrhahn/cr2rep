@@ -97,7 +97,34 @@ const char * cr2res_pfits_get_protype(const cpl_propertylist * plist)
 /*----------------------------------------------------------------------------*/
 const char * cr2res_pfits_get_arcfile(const cpl_propertylist * plist)
 {
-    return (const char *) cpl_propertylist_get_string(plist, CR2RES_HEADER_ARCFILE);
+    return (const char *) cpl_propertylist_get_string(plist, 
+            CR2RES_HEADER_ARCFILE);
+}
+
+/*----------------------------------------------------------------------------*/
+/**
+  @brief    find out the lamp4 name
+  @param    plist       property list to read from
+  @return   pointer to statically allocated character string
+ */
+/*----------------------------------------------------------------------------*/
+const char * cr2res_pfits_get_lamp4(const cpl_propertylist * plist)
+{
+    return (const char *) cpl_propertylist_get_string(plist, 
+            CR2RES_HEADER_LAMP4_NAME);
+}
+
+/*----------------------------------------------------------------------------*/
+/**
+  @brief    find out the lamp8 name
+  @param    plist       property list to read from
+  @return   pointer to statically allocated character string
+ */
+/*----------------------------------------------------------------------------*/
+const char * cr2res_pfits_get_lamp8(const cpl_propertylist * plist)
+{
+    return (const char *) cpl_propertylist_get_string(plist, 
+            CR2RES_HEADER_LAMP8_NAME);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -109,7 +136,8 @@ const char * cr2res_pfits_get_arcfile(const cpl_propertylist * plist)
 /*----------------------------------------------------------------------------*/
 const char * cr2res_pfits_get_wlen_id(const cpl_propertylist * plist)
 {
-    return (const char *) cpl_propertylist_get_string(plist, CR2RES_HEADER_WLEN_ID);
+    return (const char *) cpl_propertylist_get_string(plist, 
+            CR2RES_HEADER_WLEN_ID);
 }
 
 /*----------------------------------------------------------------------------*/
