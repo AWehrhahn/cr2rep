@@ -31,6 +31,13 @@
                                     Define
  -----------------------------------------------------------------------------*/
 
+typedef enum {
+    CR2RES_COLLAPSE_UNSPECIFIED,
+    CR2RES_COLLAPSE_NONE,
+    CR2RES_COLLAPSE_MEAN,
+    CR2RES_COLLAPSE_MEDIAN,
+} cr2res_collapse ;
+
 /*-----------------------------------------------------------------------------
                                 Prototypes
  -----------------------------------------------------------------------------*/
@@ -38,6 +45,7 @@
 hdrl_imagelist * cr2res_calib_imagelist(
         const hdrl_imagelist    *   in,
         int                         chip,
+        int                     	clean_bad,
         int                         cosmics_corr,
         const cpl_frame         *   flat,
         const cpl_frame         *   dark,
@@ -48,6 +56,7 @@ hdrl_imagelist * cr2res_calib_imagelist(
 hdrl_image * cr2res_calib_image(
         const hdrl_image    *   in,
         int                     chip,
+        int                     clean_bad,
         int                     cosmics_corr,
         const cpl_frame     *   flat,
         const cpl_frame     *   dark,

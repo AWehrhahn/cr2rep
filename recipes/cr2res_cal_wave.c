@@ -69,6 +69,7 @@ static int cr2res_cal_wave_reduce(
         int                     reduce_det,
         int                     reduce_order,
         int                     reduce_trace,
+        cr2res_collapse         collapse,
         int                     ext_height,
         int                     ext_swath_width,
         int                     ext_oversample,
@@ -83,11 +84,13 @@ static int cr2res_cal_wave_reduce(
         int                     log_flag,
         int                     propagate_flag,
         int                     display,
+        double                  display_wmin,
+        double                  display_wmax,
         cpl_table           **  out_trace_wave,
         cpl_table           **  lines_diagnostics,
+        cpl_table           **  out_extracted,
         hdrl_image          **  out_wave_map,
         cpl_propertylist    **  ext_plist) ;
-
 static int cr2res_cal_wave_create(cpl_plugin *);
 static int cr2res_cal_wave_exec(cpl_plugin *);
 static int cr2res_cal_wave_destroy(cpl_plugin *);
@@ -131,15 +134,18 @@ Spectrum Extraction and Wavelength Calibration                          \n\
     cr2res_cal_wave_wave_map.fits " CR2RES_CAL_WAVE_MAP_PROCATG"        \n\
     cr2res_cal_wave_lines_diagnostics.fits "
     CR2RES_CAL_WAVE_LINES_DIAGNOSTICS_PROCATG"\n\
+    cr2res_cal_wave_extracted.fits " CR2RES_CAL_WAVE_EXTRACT_1D_PROCATG"\n\
                                                                         \n\
   Algorithm                                                             \n\
     loop on detectors d:                                                \n\
       Call cr2res_cal_wave_reduce()                                     \n\
         -> out_trace_wave(d)                                            \n\
         -> lines_diagnostics(d)                                         \n\
+        -> out_extracted(d)                                             \n\
         -> out_wave_map(d)                                              \n\
     Save out_trace_wave                                                 \n\
     Save lines_diagnostics                                              \n\
+    Save out_extracted                                                  \n\
     Save out_wave_map                                                   \n\
                                                                         \n\
     cr2res_cal_wave_reduce():                                           \n\
@@ -150,6 +156,7 @@ Spectrum Extraction and Wavelength Calibration                          \n\
         Compute the Wavelength with cr2res_wave_apply()                 \n\
          -> out_trace_wave                                              \n\
          -> lines_diagnostics                                           \n\
+         -> out_extracted                                               \n\
         Compute the Wavelength map                                      \n\
          -> out_wave_map                                                \n\
                                                                         \n\
@@ -182,6 +189,7 @@ Spectrum Extraction and Wavelength Calibration                          \n\
     cr2res_io_save_TRACE_WAVE()                                         \n\
     cr2res_io_save_WAVE_MAP()                                           \n\
     cr2res_io_save_LINES_DIAGNOSTICS()                                  \n\
+    cr2res_io_save_EXTRACT_1D()                                         \n\
 " ;
 
 /*-----------------------------------------------------------------------------
@@ -276,6 +284,13 @@ static int cr2res_cal_wave_create(cpl_plugin * plugin)
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
 
+    p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.collapse_method",
+            CPL_TYPE_STRING, "Collapse the input images (MEAN or MEDIAN)",
+            "cr2res.cr2res_cal_wave", "MEDIAN");
+    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "collapse_method");
+    cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
+    cpl_parameterlist_append(recipe->parameters, p);
+
     p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.ext_oversample",
             CPL_TYPE_INT, "factor by which to oversample the extraction",
             "cr2res.cr2res_cal_wave", 3);
@@ -291,7 +306,7 @@ static int cr2res_cal_wave_create(cpl_plugin * plugin)
 
     p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.ext_height",
             CPL_TYPE_INT, "Extraction height",
-            "cr2res.cr2res_cal_wave", 15);
+            "cr2res.cr2res_cal_wave", 25);
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "ext_height");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
@@ -361,6 +376,15 @@ static int cr2res_cal_wave_create(cpl_plugin * plugin)
     cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "display");
     cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
     cpl_parameterlist_append(recipe->parameters, p);
+
+    p = cpl_parameter_new_value("cr2res.cr2res_cal_wave.display_range",
+            CPL_TYPE_STRING,
+            "Wavelength range to display [start, end] (in nm)",
+            "cr2res.cr2res_cal_wave", "-1.0, -1.0");
+    cpl_parameter_set_alias(p, CPL_PARAMETER_MODE_CLI, "display_range");
+    cpl_parameter_disable(p, CPL_PARAMETER_MODE_ENV);
+    cpl_parameterlist_append(recipe->parameters, p);
+
     return 0;
 }
 
@@ -420,7 +444,8 @@ static int cr2res_cal_wave(
                             ext_oversample, ext_swath_width, ext_height,
                             wl_degree, display, log_flag, propagate_flag ;
     double                  ext_smooth_slit, wl_start, wl_end, wl_err_start, 
-                            wl_err_end, wl_shift ;
+                            wl_err_end, wl_shift, display_wmin, display_wmax ;
+    cr2res_collapse         collapse ;
     cr2res_wavecal_type     wavecal_type ;
     const char          *   sval ;
     cpl_frameset        *   rawframes ;
@@ -433,6 +458,7 @@ static int cr2res_cal_wave(
     char                *   out_file;
     cpl_table           *   out_trace_wave[CR2RES_NB_DETECTORS] ;
     cpl_table           *   lines_diagnostics[CR2RES_NB_DETECTORS] ;
+    cpl_table           *   out_extracted[CR2RES_NB_DETECTORS] ;
     hdrl_image          *   out_wave_map[CR2RES_NB_DETECTORS] ;
     cpl_propertylist    *   ext_plist[CR2RES_NB_DETECTORS] ;
     int                     det_nr, order, i ;
@@ -443,6 +469,8 @@ static int cr2res_cal_wave(
     /* Initialise */
     wl_start = wl_end = wl_err_start = wl_err_end = -1.0 ;
     wl_shift = 0.0 ;
+    collapse = CR2RES_COLLAPSE_UNSPECIFIED ;
+    display_wmin = display_wmax = -1.0 ;
 
     /* RETRIEVE INPUT PARAMETERS */
     param = cpl_parameterlist_find_const(parlist,
@@ -454,6 +482,16 @@ static int cr2res_cal_wave(
     param = cpl_parameterlist_find_const(parlist,
             "cr2res.cr2res_cal_wave.trace_nb");
     reduce_trace = cpl_parameter_get_int(param);
+    param = cpl_parameterlist_find_const(parlist,
+            "cr2res.cr2res_cal_wave.collapse_method");
+    sval = cpl_parameter_get_string(param);
+    if (!strcmp(sval, "MEAN"))          collapse = CR2RES_COLLAPSE_MEAN ;
+    else if (!strcmp(sval, "MEDIAN"))   collapse = CR2RES_COLLAPSE_MEDIAN ;
+    if (collapse!=CR2RES_COLLAPSE_MEAN && collapse!=CR2RES_COLLAPSE_MEDIAN) {
+        cpl_msg_error(__func__, "Unsupported collapse method") ;
+        cpl_error_set(__func__, CPL_ERROR_ILLEGAL_INPUT) ;
+        return -1 ;
+    }
     param = cpl_parameterlist_find_const(parlist,
            "cr2res.cr2res_cal_wave.ext_oversample");
     ext_oversample = cpl_parameter_get_int(param);
@@ -506,6 +544,12 @@ static int cr2res_cal_wave(
     param = cpl_parameterlist_find_const(parlist,
             "cr2res.cr2res_cal_wave.display");
     display = cpl_parameter_get_bool(param) ;
+    param = cpl_parameterlist_find_const(parlist,
+            "cr2res.cr2res_cal_wave.display_range");
+    sval = cpl_parameter_get_string(param) ;
+    if (sscanf(sval, "%lg,%lg", &display_wmin, &display_wmax) != 2) {
+        return -1 ;
+    }
 
     /* Check Parameters */
     if (wl_degree < 0) {
@@ -571,6 +615,7 @@ static int cr2res_cal_wave(
         /* Initialise */
         out_trace_wave[det_nr-1] = NULL ;
         lines_diagnostics[det_nr-1] = NULL ;
+        out_extracted[det_nr-1] = NULL ;
         out_wave_map[det_nr-1] = NULL ;
         ext_plist[det_nr-1] = NULL ;
 
@@ -584,12 +629,14 @@ static int cr2res_cal_wave(
         if (cr2res_cal_wave_reduce(rawframes, detlin_frame,
                     master_dark_frame, master_flat_frame, bpm_frame,
                     trace_wave_frame, lines_frame, det_nr, reduce_order,
-                    reduce_trace,  ext_height, ext_swath_width,
+                    reduce_trace, collapse, ext_height, ext_swath_width,
                     ext_oversample, ext_smooth_slit, wavecal_type, wl_degree, 
                     wl_start, wl_end, wl_err_start, wl_err_end, wl_shift, 
-                    log_flag, propagate_flag, display,
+                    log_flag, propagate_flag, display, display_wmin,
+                    display_wmax, 
                     &(out_trace_wave[det_nr-1]),
                     &(lines_diagnostics[det_nr-1]),
+                    &(out_extracted[det_nr-1]),
                     &(out_wave_map[det_nr-1]),
                     &(ext_plist[det_nr-1])) == -1) {
             cpl_msg_warning(__func__, "Failed to reduce detector %d", det_nr);
@@ -610,6 +657,12 @@ static int cr2res_cal_wave(
             CR2RES_CAL_WAVE_MAP_PROCATG, RECIPE_STRING) ;
     cpl_free(out_file);
 
+    out_file = cpl_sprintf("%s_extracted.fits", RECIPE_STRING) ;
+    cr2res_io_save_EXTRACT_1D(out_file, frameset, rawframes, parlist, 
+            out_extracted, NULL, ext_plist, 
+            CR2RES_CAL_WAVE_EXTRACT_1D_PROCATG, RECIPE_STRING) ;
+    cpl_free(out_file);
+
 	if (wavecal_type == CR2RES_LINE2D || wavecal_type == CR2RES_LINE1D) {
 		/* Save the Lines Diagnostics */
 		out_file = cpl_sprintf("%s_lines_diagnostics.fits", RECIPE_STRING);
@@ -628,6 +681,8 @@ static int cr2res_cal_wave(
             cpl_table_delete(out_trace_wave[i]) ;
         if (lines_diagnostics[i] != NULL)
             cpl_table_delete(lines_diagnostics[i]) ;
+        if (out_extracted[i] != NULL)
+            cpl_table_delete(out_extracted[i]) ;
         if (out_wave_map[i] != NULL) {
             hdrl_image_delete(out_wave_map[i]) ;
         }
@@ -648,6 +703,7 @@ static int cr2res_cal_wave(
   @param reduce_det         The detector to compute
   @param reduce_order       The order to compute (-1 for all)
   @param reduce_trace       The trace to compute (-1 for all)
+  @param collapse           CR2RES_COLLAPSE_MEAN or CR2RES_COLLAPSE_MEDIAN
   @param ext_height         Extraction related
   @param ext_swath_width    Extraction related
   @param ext_oversample     Extraction related
@@ -662,8 +718,11 @@ static int cr2res_cal_wave(
   @param propagate_flag     Flag to copy the input WL to the output when they 
                             are not computed
   @param display            Flag to enable display functionalities
+  @param display_wmin       Minimum Wavelength to  display
+  @param display_wmax       Maximum Wavelength to  display
   @param out_trace_wave     [out] trace wave table
   @param lines_diagnostics  [out] lines diagnostics table
+  @param out_extracted      [out] extracted table with updated WL
   @param out_wave_map       [out] Wave map
   @param ext_plist          [out] the header for saving the products
   @return   0 if ok, -1 otherwise
@@ -680,6 +739,7 @@ static int cr2res_cal_wave_reduce(
         int                     reduce_det,
         int                     reduce_order,
         int                     reduce_trace,
+        cr2res_collapse         collapse,
         int                     ext_height, 
         int                     ext_swath_width,
         int                     ext_oversample, 
@@ -694,8 +754,11 @@ static int cr2res_cal_wave_reduce(
         int                     log_flag,
         int                     propagate_flag,
         int                     display,
+        double                  display_wmin,
+        double                  display_wmax,
         cpl_table           **  out_trace_wave,
         cpl_table           **  lines_diagnostics,
+        cpl_table           **  out_extracted,
         hdrl_image          **  out_wave_map,
         cpl_propertylist    **  ext_plist)
 {
@@ -711,14 +774,23 @@ static int cr2res_cal_wave_reduce(
     hdrl_image          *   wl_map ;
     cpl_table           *   tw_out ;
     cpl_table           *   lines_diagnostics_out ;
+    cpl_table           *   extracted_out ;
     cpl_propertylist    *   plist ;
+    cpl_propertylist    *   qcs_plist ;
     const char          *   first_file ;
     int                     ext_nr ;
+    double                  best_xcorr ;
     
     /* Check Inputs */
     if (rawframes==NULL || trace_wave_frame==NULL || out_trace_wave==NULL ||
-            lines_diagnostics == NULL || out_wave_map==NULL || ext_plist==NULL)
+            lines_diagnostics == NULL || out_extracted == NULL || 
+            out_wave_map==NULL || ext_plist==NULL) return -1 ;
+    if (collapse!=CR2RES_COLLAPSE_MEAN && collapse!=CR2RES_COLLAPSE_MEDIAN) {
         return -1 ;
+    }
+
+    /* Initialise */
+    best_xcorr = -1 ;
 
     /* Load the DITs if necessary */
     if (master_dark_frame != NULL)  dits = cr2res_io_read_dits(rawframes) ;
@@ -741,8 +813,9 @@ static int cr2res_cal_wave_reduce(
     }
 
     /* Calibrate the images */
-    if ((in_calib = cr2res_calib_imagelist(in, reduce_det, 0, master_flat_frame,
-            master_dark_frame, bpm_frame, detlin_frame, dits)) == NULL) {
+    if ((in_calib = cr2res_calib_imagelist(in, reduce_det, 0, 0,
+                    master_flat_frame, master_dark_frame, bpm_frame, 
+                    detlin_frame, dits)) == NULL) {
         cpl_msg_error(__func__, "Failed to apply the calibrations") ;
         if (dits != NULL) cpl_vector_delete(dits) ;
         hdrl_imagelist_delete(in) ;
@@ -752,17 +825,26 @@ static int cr2res_cal_wave_reduce(
     if (dits != NULL) cpl_vector_delete(dits) ;
 
     /* Collapse */
-    cpl_msg_info(__func__, "Collapse the input frames") ;
-    cpl_msg_indent_more() ;
-    if (hdrl_imagelist_collapse_mean(in_calib, &collapsed, &contrib) !=
-            CPL_ERROR_NONE) {
+    if (collapse == CR2RES_COLLAPSE_MEAN) {
+        cpl_msg_info(__func__, "Collapse (Mean) the input frames") ;
+        cpl_msg_indent_more() ;
+        hdrl_imagelist_collapse_mean(in_calib, &collapsed, &contrib) ;
+    } else if (collapse == CR2RES_COLLAPSE_MEDIAN) {
+        cpl_msg_info(__func__, "Collapse (Median) the input frames") ;
+        cpl_msg_indent_more() ;
+        hdrl_imagelist_collapse_median(in_calib, &collapsed, &contrib) ;
+    } else {
+        /* Should never happen */
+        collapsed = NULL ;
+        contrib = NULL ;
+    }
+    hdrl_imagelist_delete(in_calib) ;
+    if (contrib != NULL) cpl_image_delete(contrib) ;
+    if (cpl_error_get_code() != CPL_ERROR_NONE) {
         cpl_msg_error(__func__, "Failed to Collapse") ;
-        hdrl_imagelist_delete(in_calib) ;
         cpl_msg_indent_less() ;
         return -1 ;
     }
-    cpl_image_delete(contrib) ;
-    hdrl_imagelist_delete(in_calib) ;
     cpl_msg_indent_less() ;
 
     /* Load the trace wave */
@@ -794,12 +876,15 @@ static int cr2res_cal_wave_reduce(
     if (cr2res_wave_apply(tw_in, extracted, lines_frame, reduce_order, 
                 reduce_trace, wavecal_type, wl_degree, wl_start, wl_end, 
                 wl_err_start, wl_err_end, wl_shift, log_flag, propagate_flag, 
-                display,
+                display, display_wmin, display_wmax,
+                &qcs_plist,
                 &lines_diagnostics_out,
+                &extracted_out,
                 &tw_out)) {
         cpl_msg_error(__func__, "Failed to calibrate");
         cpl_table_delete(tw_in) ;
         cpl_table_delete(extracted) ;
+        return -1 ;
     }
     cpl_table_delete(tw_in) ;
     cpl_table_delete(extracted) ;
@@ -815,20 +900,22 @@ static int cr2res_cal_wave_reduce(
     if (plist == NULL) {
         cpl_table_delete(tw_out) ;
         cpl_table_delete(lines_diagnostics_out) ;
+        cpl_table_delete(extracted_out) ;
         hdrl_image_delete(wl_map) ;
         cpl_msg_error(__func__, "Failed to load the plist") ;
         return -1 ;
     }
 
-    /* Compute the QC parameters */
-    /* TODO : */
-
     /* Store the QC parameters in the plist */
-    /* cpl_propertylist_append_double(plist, "ESO QC ...", 1.0) ; */
+    if (qcs_plist != NULL) {
+        cpl_propertylist_append(plist, qcs_plist) ;
+        cpl_propertylist_delete(qcs_plist) ;
+    }
 
     /* Return */
     *out_trace_wave = tw_out ;
     *lines_diagnostics = lines_diagnostics_out ;
+    *out_extracted = extracted_out ;
     *out_wave_map = wl_map;
     *ext_plist = plist ;
     return 0 ;

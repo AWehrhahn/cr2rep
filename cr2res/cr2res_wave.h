@@ -63,7 +63,11 @@ int cr2res_wave_apply(
         int                         log_flag,
         int                         propagate_flag,
         int                         display,
+        double                      display_wmin,
+        double                      display_wmax,
+        cpl_propertylist    **      qcs,
         cpl_table           **      lines_diagnostics,
+        cpl_table           **      extracted_out,
         cpl_table           **      trace_wave_out) ;
 
 cpl_polynomial * cr2res_wave_1d(
@@ -78,6 +82,9 @@ cpl_polynomial * cr2res_wave_1d(
         int                     degree,
         int                     log_flag,
         int                     display,
+        double                  display_wmin,
+        double                  display_wmax,
+        double              *       best_xcorr,
         cpl_array           **  wavelength_error,
         cpl_table           **  lines_diagnostics) ;
 
@@ -106,6 +113,7 @@ cpl_polynomial * cr2res_wave_xcorr(
         double              slit_width,
         double              fwhm,
         int                 display,
+        double          *   best_xcorr,
         cpl_array       **  wavelength_error) ;
 
 cpl_polynomial * cr2res_wave_etalon(
