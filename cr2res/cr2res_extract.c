@@ -844,11 +844,20 @@ int cr2res_extract_slitdec_vert(
             for(y=1;y<=height;y++){
                 pixval = cpl_image_get(img_rect, x, y, &badpix);
                 errval = cpl_image_get(err_rect, x, y, &badpix);
-                cpl_image_set(img_sw, col, y, pixval);
-                cpl_image_set(err_sw, col, y, errval);
-                if(cpl_error_get_code() != CPL_ERROR_NONE)
+                if(cpl_error_get_code() != CPL_ERROR_NONE){
                     cpl_msg_error(__func__, "%d %d %s",
                             x, y, cpl_error_get_where());
+                    pixval = 0;
+                    errval = 1;
+                    badpix = 1;
+                }
+                if (isnan(pixval)){
+                    pixval = 0;
+                    errval = 1;
+                    badpix = 1;
+                }
+                cpl_image_set(img_sw, col, y, pixval);
+                cpl_image_set(err_sw, col, y, errval);
                 // raw index for mask, start with 0!
                 j = (y-1)*swath + (col-1) ;
                 if (badpix == 0) mask_sw[j] = 1;
@@ -1247,6 +1256,14 @@ int cr2res_extract_slitdec_curved(
                     cpl_msg_error(__func__, "%d %d %s",
                             x, y, cpl_error_get_where());
                     cpl_error_reset();
+                    pixval = 0;
+                    errval = 1;
+                    badpix = 1;
+                }
+                if (isnan(pixval)){
+                    pixval = 0;
+                    errval = 1;
+                    badpix = 1;
                 }
                 cpl_image_set(img_sw, col, y, pixval);
                 cpl_image_set(err_sw, col, y, errval);
