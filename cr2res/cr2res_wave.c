@@ -928,7 +928,7 @@ cpl_polynomial * cr2res_wave_xcorr(
     }
 
     /* Display */
-    if (display && 0) {
+    if (display) {
         /* Plot Catalog Spectrum */
         cpl_plot_bivector(
                 "set grid;set xlabel 'Wavelength (nm)';set ylabel 'Emission';",
