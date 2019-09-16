@@ -1277,6 +1277,7 @@ int cr2res_extract_slitdec_curved(
         unc_sw_data = cpl_vector_get_data(unc_sw);
         img_tmp = cpl_image_collapse_median_create(img_sw, 0, 0, 0);
         spec_sw = cpl_vector_new_from_image_row(img_tmp,1);
+        cpl_vector_multiply_scalar(spec_sw, cpl_image_get_size_y(img_sw));
         cpl_image_delete(img_tmp);
         spec_sw_data = cpl_vector_get_data(spec_sw);
 
@@ -2628,6 +2629,11 @@ static int cr2res_extract_slit_func_curved(
                         yy = xi[xi_index(x,iy,n)].y;
                         if (m_zeta[mzeta_index(xx,yy)] > 0 && xx >= 0 && xx < ncols &&
                                 yy >= 0 && yy < nrows) {
+
+                            // The initial guess for the spectrum should be good enough to restrict the slit function to the range between 0 and 1
+                            if ((mask[yy * ncols + xx] != 0) & (sP[x] != 0) & (im[yy * ncols + xx] / sP[x] > 1))
+                                mask[yy * ncols + xx] = 0;
+
                             for (m = 0; m < m_zeta[mzeta_index(xx,yy)]; m++) {
                                 xxx = zeta[zeta_index(xx,yy,m)].x;
                                 jy = zeta[zeta_index(xx,yy,m)].iy;
