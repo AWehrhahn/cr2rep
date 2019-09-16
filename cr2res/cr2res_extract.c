@@ -1273,12 +1273,8 @@ int cr2res_extract_slitdec_curved(
         img_sw_data = cpl_image_get_data_double(img_sw);
         err_sw_data = cpl_image_get_data_double(err_sw);
         unc_sw_data = cpl_vector_get_data(unc_sw);
-        // The first guess of the spectrum is the median along the columns
-        // Times the number of columns, since the slitfunction is in total 1
-        // i.e. we divide out the slitfunction
         img_tmp = cpl_image_collapse_median_create(img_sw, 0, 0, 0);
         spec_sw = cpl_vector_new_from_image_row(img_tmp,1);
-        cpl_vector_multiply_scalar(spec_sw, cpl_image_get_size_y(img_sw));
         cpl_image_delete(img_tmp);
         spec_sw_data = cpl_vector_get_data(spec_sw);
 
@@ -2606,70 +2602,65 @@ static int cr2res_extract_slit_func_curved(
     /* Loop through sL , sP reconstruction until convergence is reached */
     iter = 0;
     do {
-        if (iter == 0){
-            for (iy = 0; iy < ny; iy++){
-                l_bj[iy] = 1;
-            }
-        } else{
-            /* Compute slit function sL */
-            /* Prepare the RHS and the matrix */
-            for (iy = 0; iy < ny; iy++) {
-                l_bj[iy] = 0.e0;
-                /* Clean RHS                */
-                for (jy = 0; jy <= 4 * osample; jy++)
-                    l_Aij[iy + ny * jy] = 0.e0;
-            }
-            /* Fill in SLE arrays for slit function */
-            diag_tot = 0.e0;
-            for (iy = 0; iy < ny; iy++) {
-                for (x = 0; x < ncols; x++) {
-                    for (n = 0; n < 4; n++) {
-                        ww = xi[xi_index(x,iy,n)].w;
-                        if (ww > 0) {
-                            xx = xi[xi_index(x,iy,n)].x;
-                            yy = xi[xi_index(x,iy,n)].y;
-                            if (m_zeta[mzeta_index(xx,yy)] > 0 && xx >= 0 && xx < ncols &&
-                                    yy >= 0 && yy < nrows) {
-                                for (m = 0; m < m_zeta[mzeta_index(xx,yy)]; m++) {
-                                    xxx = zeta[zeta_index(xx,yy,m)].x;
-                                    jy = zeta[zeta_index(xx,yy,m)].iy;
-                                    www = zeta[zeta_index(xx,yy,m)].w;
-                                    l_Aij[iy + ny * (jy - iy + 2 * osample)] +=
-                                        sP[xxx] * sP[x] * www * ww * mask[yy *
-                                        ncols + xx];
-                                }
-                                l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols +
-                                    xx] * sP[x] * ww;
+        /* Compute slit function sL */
+        /* Prepare the RHS and the matrix */
+        for (iy = 0; iy < ny; iy++) {
+            l_bj[iy] = 0.e0;
+            /* Clean RHS                */
+            for (jy = 0; jy <= 4 * osample; jy++)
+                l_Aij[iy + ny * jy] = 0.e0;
+        }
+        /* Fill in SLE arrays for slit function */
+        diag_tot = 0.e0;
+        for (iy = 0; iy < ny; iy++) {
+            for (x = 0; x < ncols; x++) {
+                for (n = 0; n < 4; n++) {
+                    ww = xi[xi_index(x,iy,n)].w;
+                    if (ww > 0) {
+                        xx = xi[xi_index(x,iy,n)].x;
+                        yy = xi[xi_index(x,iy,n)].y;
+                        if (m_zeta[mzeta_index(xx,yy)] > 0 && xx >= 0 && xx < ncols &&
+                                yy >= 0 && yy < nrows) {
+                            for (m = 0; m < m_zeta[mzeta_index(xx,yy)]; m++) {
+                                xxx = zeta[zeta_index(xx,yy,m)].x;
+                                jy = zeta[zeta_index(xx,yy,m)].iy;
+                                www = zeta[zeta_index(xx,yy,m)].w;
+                                l_Aij[iy + ny * (jy - iy + 2 * osample)] +=
+                                    sP[xxx] * sP[x] * www * ww * mask[yy *
+                                    ncols + xx];
                             }
+                            l_bj[iy] += im[yy * ncols + xx] * mask[yy * ncols +
+                                xx] * sP[x] * ww;
                         }
                     }
                 }
-                diag_tot += l_Aij[iy + ny * 2 * osample];
             }
-            /* Scale regularization parameters */
-            lambda = lambda_sL * diag_tot / ny;
-            /* Add regularization parts for the SLE matrix */
-            /* Main diagonal  */
-            l_Aij[ny * 2 * osample] += lambda;
-            /* Upper diagonal */
-            l_Aij[ny * (2 * osample + 1)] -= lambda;
-            for (iy = 1; iy < ny - 1; iy++) {
-                /* Lower diagonal */
-                l_Aij[iy + ny * (2 * osample - 1)] -= lambda;
-                /* Main diagonal  */
-                l_Aij[iy + ny * 2 * osample] += lambda * 2.e0;
-                /* Upper diagonal */
-                l_Aij[iy + ny * (2 * osample + 1)] -= lambda;
-            }
-            /* Lower diagonal */
-            l_Aij[ny - 1 + ny * (2 * osample - 1)] -= lambda;
-            /* Main diagonal  */
-            l_Aij[ny - 1 + ny * 2 * osample] += lambda;
-
-            /* Solve the system of equations */
-            info = cr2res_extract_slitdec_bandsol(l_Aij, l_bj, ny, 4 * osample + 1);
-            if (info) cpl_msg_info(__func__, "info(sL)=%d\n", info);
+            diag_tot += l_Aij[iy + ny * 2 * osample];
         }
+        /* Scale regularization parameters */
+        lambda = lambda_sL * diag_tot / ny;
+        /* Add regularization parts for the SLE matrix */
+        /* Main diagonal  */
+        l_Aij[ny * 2 * osample] += lambda;
+        /* Upper diagonal */
+        l_Aij[ny * (2 * osample + 1)] -= lambda;
+        for (iy = 1; iy < ny - 1; iy++) {
+            /* Lower diagonal */
+            l_Aij[iy + ny * (2 * osample - 1)] -= lambda;
+            /* Main diagonal  */
+            l_Aij[iy + ny * 2 * osample] += lambda * 2.e0;
+            /* Upper diagonal */
+            l_Aij[iy + ny * (2 * osample + 1)] -= lambda;
+        }
+        /* Lower diagonal */
+        l_Aij[ny - 1 + ny * (2 * osample - 1)] -= lambda;
+        /* Main diagonal  */
+        l_Aij[ny - 1 + ny * 2 * osample] += lambda;
+
+        /* Solve the system of equations */
+        info = cr2res_extract_slitdec_bandsol(l_Aij, l_bj, ny, 4 * osample + 1);
+        if (info) cpl_msg_info(__func__, "info(sL)=%d\n", info);
+
         /* Normalize the slit function */
         norm = 0.e0;
         for (iy = 0; iy < ny; iy++) {
@@ -2763,10 +2754,10 @@ static int cr2res_extract_slit_func_curved(
         /* Adjust the mask marking outlyers */
         for (y = 0; y < nrows; y++) {
             for (x = delta_x; x < ncols - delta_x; x++) {
-                if (fabs(model[y * ncols + x] - im[y * ncols + x]) < 6. * dev)
-                    mask[y * ncols + x] = 1;
-                else
+                if (fabs(model[y * ncols + x] - im[y * ncols + x]) > 6. * dev)
                     mask[y * ncols + x] = 0;
+                else
+                    mask[y * ncols + x] = 1;
             }
         }
 
@@ -2780,7 +2771,7 @@ static int cr2res_extract_slit_func_curved(
                 sP_change = fabs(sP[x] - sP_old[x]);
         }
         /* Check for convergence */
-    } while (iter != 0 && iter++ < maxiter && sP_change > sP_stop * sP_max);
+    } while (iter++ < maxiter && sP_change > sP_stop * sP_max);
 
     /* Uncertainty estimate */
     for (x = 0; x < ncols; x++) {
@@ -2867,7 +2858,7 @@ static int cr2res_extract_slitdec_bandsol(
         for(j=1; j<min(nd/2+1,n-i); j++)
         {
             aa=a[i+j+n*(nd/2-j)];
-            // if(aa!=0.e0) return -j;
+            //if(aa==0.e0) return -j;
             r[i+j]-=r[i]*aa;
             for(k=0; k<n*(nd-j); k+=n) a[i+j+k]-=a[i+k+n*j]*aa;
         }
