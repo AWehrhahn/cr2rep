@@ -1393,8 +1393,6 @@ int cr2res_extract_slitdec_curved(
 
         // Save swath to output vector
         for (j=sw_start;j<sw_end;j++) {
-            if (isnan(cpl_vector_get(spec_sw, j-sw_start)))
-                cpl_msg_error(__func__, "Not again");
             cpl_vector_set(spc, j,
                 cpl_vector_get(spec_sw, j-sw_start) + cpl_vector_get(spc, j));
             // just add weighted errors (instead of squared sum), as they are not independant
