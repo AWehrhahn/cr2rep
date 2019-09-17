@@ -2612,12 +2612,10 @@ static int cr2res_extract_slit_func_curved(
     do {
         /* Compute slit function sL */
         /* Prepare the RHS and the matrix */
-        for (iy = 0; iy < ny; iy++) {
+        for (iy = 0; iy < ny; iy++)
             l_bj[iy] = 0.e0;
-            /* Clean RHS                */
-            for (jy = 0; jy < 4 * osample + 1; jy++)
-                l_Aij[iy + ny * jy] = 0.e0;
-        }
+        for (jy = 0; jy < ny * (4 * osample + 1); jy++)
+            l_Aij[jy] = 0.e0;
         /* Fill in SLE arrays for slit function */
         diag_tot = 0.e0;
         for (iy = 0; iy < ny; iy++) {
@@ -2685,10 +2683,11 @@ static int cr2res_extract_slit_func_curved(
         for (iy = 0; iy < ny; iy++) sL[iy] /= norm;
 
         /*  Compute spectrum sP */
-        for (x = 0; x < ncols; x++) {
-            for (xx = 0; xx < 5; xx++) p_Aij[xx * ncols + x] = 0.;
+        for (x = 0; x < ncols; x++)
             p_bj[x] = 0;
-        }
+        for (x = 0; x < 5 * ncols; x++) 
+            p_Aij[x] = 0.;
+
         for (x = 0; x < ncols; x++) {
             for (iy = 0; iy < ny; iy++) {
                 for (n=0; n < 4; n++) {
@@ -2785,7 +2784,7 @@ static int cr2res_extract_slit_func_curved(
                 sP_change = fabs(sP[x] - sP_old[x]);
         }
         /* Check for convergence */
-    } while (iter++ < maxiter && sP_change > sP_stop * sP_max);
+    } while (iter++ < maxiter && sP_change > sP_stop * sP_max && sP_change == 0);
 
     /* Uncertainty estimate */
     for (x = 0; x < ncols; x++) {
